@@ -7,6 +7,7 @@
 #define DISPLAY_MODE_SHOW_TIME 0  // основной режим - вывод времени на индикатор
 #define DISPLAY_MODE_SET_HOUR 1   // режим настройки часов
 #define DISPLAY_MODE_SET_MINUTE 2 // режим настройки минут
+#define DISPLAY_MODE_SHOW_TEMP 3  // режим вывода температуры
 
 #define BTN_FLAG_NONE 0 // флаг кнопки - ничего не делать
 #define BTN_FLAG_NEXT 1 // флаг кнопки - изменить значение
@@ -45,3 +46,6 @@ void saveTime(byte hour, byte minute);
 // ==== разное =======================================
 // изменение данных по клику кнопки с контролем выхода за предельное значение
 void checkData(byte &dt, byte max, bool toUp);
+
+// вывести на экран температуру
+void showTemp();

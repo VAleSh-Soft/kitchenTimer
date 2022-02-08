@@ -8,7 +8,7 @@
 // ==== настройки ====================================
 #define MIN_DISPLAY_BRIGHTNESS 1 // минимальная яркость дисплея, 1-7
 #define MAX_DISPLAY_BRIGHTNESS 7 // максимальная яркость дисплея, 1-7
-#define AUTO_EXIT_TIMEOUT 10     // время автоматического возврата в режим показа текущего времени из любых других режимов при отсутствии активности пользователя, секунд
+#define AUTO_EXIT_TIMEOUT 6      // время автоматического возврата в режим показа текущего времени из любых других режимов при отсутствии активности пользователя, секунд
 // ===================================================
 
 TM1637Display tm(11, 10); // CLK, DAT
@@ -135,10 +135,23 @@ void checkUpDownButton()
 {
   switch (displayMode)
   {
+  case DISPLAY_MODE_SHOW_TIME:
+    if (btnDown.getButtonState() == BTN_ONECLICK)
+    {
+      displayMode = DISPLAY_MODE_SHOW_TEMP;
+    }
+    break;
   case DISPLAY_MODE_SET_HOUR:
   case DISPLAY_MODE_SET_MINUTE:
     checkUDbtn(btnUp);
     checkUDbtn(btnDown);
+    break;
+  case DISPLAY_MODE_SHOW_TEMP:
+    if (btnDown.getButtonState() == BTN_ONECLICK)
+    {
+      displayMode = DISPLAY_MODE_SHOW_TIME;
+      tasks.stopTask(return_to_default_mode);
+    }
     break;
   }
 }
@@ -170,6 +183,9 @@ void returnToDefMode()
   case DISPLAY_MODE_SET_HOUR:
   case DISPLAY_MODE_SET_MINUTE:
     btnSet.setBtnFlag(BTN_FLAG_EXIT);
+    break;
+  case DISPLAY_MODE_SHOW_TEMP:
+    displayMode = DISPLAY_MODE_SHOW_TIME;
     break;
   }
   tasks.stopTask(return_to_default_mode);
@@ -224,7 +240,7 @@ void showTimeSetting()
     tasks.stopTask(set_time_mode);
     return;
   }
-  
+
   if ((btnUp.getBtnFlag() == BTN_FLAG_NEXT) || (btnDown.getBtnFlag() == BTN_FLAG_NEXT))
   {
     bool dir = btnUp.getBtnFlag() == BTN_FLAG_NEXT;
@@ -262,7 +278,7 @@ void showTime(DateTime dt, bool force)
   showTime(dt.hour(), dt.minute(), force);
 }
 
-void showTime(byte hour, byte minute, bool force = false)
+void showTime(byte hour, byte minute, bool force)
 {
   static bool p = blink_flag;
   // вывод делается только в момент смены состояния блинка, т.е. через каждые 500 милисекунд или по флагу принудительного обновления
@@ -313,10 +329,49 @@ void checkData(byte &dt, byte max, bool toUp)
   }
 }
 
+void showTemp()
+{
+  if (!tasks.getTaskState(return_to_default_mode))
+  {
+    tasks.startTask(return_to_default_mode);
+  }
+
+  tm.clear();
+  uint8_t data[] = {0x00, 0x00, 0x00, 0x63};
+  int temp = int(clock.getTemperature());
+  // если температура выходит за диапазон, сформировать строку минусов
+  if (temp > 99 || temp < -99)
+  {
+    for (byte i = 0; i < 4; i++)
+    {
+      data[i] = 0x40;
+    }
+  }
+  else
+  { // если температура отрицательная, сформировать минус впереди
+    if (temp < 0)
+    {
+      temp = -temp;
+      data[1] = 0x40;
+    }
+    if (temp > 9)
+    { // если температура ниже -9, переместить минус на крайнюю левую позицию
+      if (data[1] == 0x40)
+      {
+        data[0] = 0x40;
+      }
+      data[1] = tm.encodeDigit(temp / 10);
+    }
+    data[2] = tm.encodeDigit(temp % 10);
+  }
+  // вывести данные на индикатор
+  tm.setSegments(data);
+}
+
 // ===================================================
 void setup()
 {
-  // Serial.begin(9600);
+  Serial.begin(9600);
 
   Wire.begin();
   clock.setClockMode(false); // 24-часовой режим
@@ -350,6 +405,12 @@ void loop()
     if (!tasks.getTaskState(set_time_mode))
     {
       showTimeSetting();
+    }
+    break;
+  case DISPLAY_MODE_SHOW_TEMP:
+    if (!tasks.getTaskState(return_to_default_mode))
+    {
+      showTemp();
     }
     break;
   default:
