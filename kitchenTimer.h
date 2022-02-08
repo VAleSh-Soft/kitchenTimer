@@ -22,8 +22,7 @@
 // ==== опрос кнопок =================================
 void checkButton();
 void checkSetButton();
-void checkUpButton();
-void checkDownButton();
+void checkUpDownButton();
 
 // ==== задачи =======================================
 void blink();

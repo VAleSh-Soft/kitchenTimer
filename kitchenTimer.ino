@@ -84,8 +84,7 @@ ktButton btnDown(BTN_DOWN_PIN); // кнопка Down - изменение час
 void checkButton()
 {
   checkSetButton();
-  checkUpButton();
-  checkDownButton();
+  checkUpDownButton();
 }
 
 void checkSetButton()
@@ -120,28 +119,26 @@ void checkSetButton()
   }
 }
 
-void checkUpButton()
+void checkUDbtn(ktButton &btn)
 {
-  switch (btnUp.getButtonState())
+  switch (btn.getButtonState())
   {
-  case BTN_ONECLICK:
-
-    break;
+  case BTN_DOWN:
+  case BTN_DBLCLICK:
   case BTN_LONGCLICK:
-
+    btn.setBtnFlag(BTN_FLAG_NEXT);
     break;
   }
 }
 
-void checkDownButton()
+void checkUpDownButton()
 {
-  switch (btnDown.getButtonState())
+  switch (displayMode)
   {
-  case BTN_ONECLICK:
-
-    break;
-  case BTN_LONGCLICK:
-
+  case DISPLAY_MODE_SET_HOUR:
+  case DISPLAY_MODE_SET_MINUTE:
+    checkUDbtn(btnUp);
+    checkUDbtn(btnDown);
     break;
   }
 }
@@ -198,6 +195,7 @@ void showTimeSetting()
     curHour = dt.hour();
     curMinute = dt.minute();
   }
+
   // опрос кнопок =====================
   switch (btnSet.getBtnFlag())
   {
@@ -226,6 +224,24 @@ void showTimeSetting()
     tasks.stopTask(set_time_mode);
     return;
   }
+  
+  if ((btnUp.getBtnFlag() == BTN_FLAG_NEXT) || (btnDown.getBtnFlag() == BTN_FLAG_NEXT))
+  {
+    bool dir = btnUp.getBtnFlag() == BTN_FLAG_NEXT;
+    switch (displayMode)
+    {
+    case DISPLAY_MODE_SET_HOUR:
+      checkData(curHour, 23, dir);
+      break;
+    case DISPLAY_MODE_SET_MINUTE:
+      checkData(curMinute, 59, dir);
+      break;
+    }
+    time_checked = true;
+    btnUp.setBtnFlag(BTN_FLAG_NONE);
+    btnDown.setBtnFlag(BTN_FLAG_NONE);
+  }
+
   // вывод данных на индикатор ======
   showTimeSettingData(curHour, curMinute);
 }
