@@ -16,14 +16,15 @@ DS3231 clock;             // SDA - A4, SCL - A5
 RTClib RTC;
 
 #ifdef USE_LIGHT_SENSOR
-shTaskManager tasks(4); // создаем список задач
+shTaskManager tasks(5); // создаем список задач
 #else
-shTaskManager tasks(3); // создаем список задач
+shTaskManager tasks(4); // создаем список задач
 #endif
 
 shHandle blink_timer;            // таймер блинка
 shHandle return_to_default_mode; // таймер автовозврата в режим показа времени из любого режима настройки
 shHandle set_time_mode;          // таймер настройки времени
+shHandle show_temp_mode;         // таймер показа температуры
 #ifdef USE_LIGHT_SENSOR
 shHandle light_sensor_guard; // отслеживание показаний датчика света
 #endif
@@ -151,6 +152,7 @@ void checkUpDownButton()
     {
       displayMode = DISPLAY_MODE_SHOW_TIME;
       tasks.stopTask(return_to_default_mode);
+      tasks.stopTask(show_temp_mode);
     }
     break;
   }
@@ -186,6 +188,7 @@ void returnToDefMode()
     break;
   case DISPLAY_MODE_SHOW_TEMP:
     displayMode = DISPLAY_MODE_SHOW_TIME;
+    tasks.stopTask(show_temp_mode);
     break;
   }
   tasks.stopTask(return_to_default_mode);
@@ -213,32 +216,28 @@ void showTimeSetting()
   }
 
   // опрос кнопок =====================
-  switch (btnSet.getBtnFlag())
+  if (btnSet.getBtnFlag() > BTN_FLAG_NONE)
   {
-  case BTN_FLAG_NEXT:
-    checkData(displayMode, DISPLAY_MODE_SET_MINUTE, true);
-    btnSet.setBtnFlag(BTN_FLAG_NONE);
-    if (displayMode == DISPLAY_MODE_SHOW_TIME)
-    {
-      if (time_checked)
-      {
-        saveTime(curHour, curMinute);
-        time_checked = false;
-      }
-      tasks.stopTask(set_time_mode);
-      return;
-    }
-    break;
-  case BTN_FLAG_EXIT:
-    btnSet.setBtnFlag(BTN_FLAG_NONE);
-    displayMode = DISPLAY_MODE_SHOW_TIME;
     if (time_checked)
     {
       saveTime(curHour, curMinute);
       time_checked = false;
     }
-    tasks.stopTask(set_time_mode);
-    return;
+    if (btnSet.getBtnFlag() == BTN_FLAG_NEXT)
+    {
+      checkData(displayMode, DISPLAY_MODE_SET_MINUTE, true);
+    }
+    else
+    {
+      displayMode = DISPLAY_MODE_SHOW_TIME;
+    }
+    btnSet.setBtnFlag(BTN_FLAG_NONE);
+    if (displayMode == DISPLAY_MODE_SHOW_TIME)
+    {
+      tasks.stopTask(set_time_mode);
+      tasks.stopTask(return_to_default_mode);
+      return;
+    }
   }
 
   if ((btnUp.getBtnFlag() == BTN_FLAG_NEXT) || (btnDown.getBtnFlag() == BTN_FLAG_NEXT))
@@ -331,12 +330,12 @@ void checkData(byte &dt, byte max, bool toUp)
 
 void showTemp()
 {
-  if (!tasks.getTaskState(return_to_default_mode))
+  if (!tasks.getTaskState(show_temp_mode))
   {
     tasks.startTask(return_to_default_mode);
+    tasks.startTask(show_temp_mode);
   }
 
-  tm.clear();
   uint8_t data[] = {0x00, 0x00, 0x00, 0x63};
   int temp = int(clock.getTemperature());
   // если температура выходит за диапазон, сформировать строку минусов
@@ -371,19 +370,23 @@ void showTemp()
 // ===================================================
 void setup()
 {
-  Serial.begin(9600);
+  //  Serial.begin(9600);
 
+  // ==== часы =========================================
   Wire.begin();
   clock.setClockMode(false); // 24-часовой режим
 
+  // ==== кнопки Up/Down ===============================
   btnUp.setLongClickMode(LCM_CLICKSERIES);
   btnUp.setLongClickTimeout(100);
   btnDown.setLongClickMode(LCM_CLICKSERIES);
   btnDown.setLongClickTimeout(100);
 
+  // ==== задачи =======================================
   blink_timer = tasks.addTask(500, blink);
   return_to_default_mode = tasks.addTask(AUTO_EXIT_TIMEOUT * 1000, returnToDefMode, false);
   set_time_mode = tasks.addTask(100, showTimeSetting, false);
+  show_temp_mode = tasks.addTask(500, showTemp, false);
 #ifdef USE_LIGHT_SENSOR
   light_sensor_guard = tasks.addTask(100, setBrightness);
 #else
@@ -408,7 +411,7 @@ void loop()
     }
     break;
   case DISPLAY_MODE_SHOW_TEMP:
-    if (!tasks.getTaskState(return_to_default_mode))
+    if (!tasks.getTaskState(show_temp_mode))
     {
       showTemp();
     }
