@@ -140,6 +140,10 @@ void checkSetButton()
     case DISPLAY_MODE_SET_MINUTE:
       btnSet.setBtnFlag(BTN_FLAG_EXIT);
       break;
+    case DISPLAY_MODE_SHOW_TIMER_1:
+    case DISPLAY_MODE_SHOW_TIMER_2:
+      returnToDefMode();
+      break;
     }
     break;
   }
@@ -250,6 +254,7 @@ void returnToDefMode()
   case DISPLAY_MODE_SHOW_TIMER_1:
   case DISPLAY_MODE_SHOW_TIMER_2:
     displayMode = DISPLAY_MODE_SHOW_TIME;
+    showTime(RTC.now(), true);
     tasks.stopTask(show_timer_mode);
     break;
   }
@@ -297,6 +302,7 @@ void showTimeSetting()
     btnSet.setBtnFlag(BTN_FLAG_NONE);
     if (displayMode == DISPLAY_MODE_SHOW_TIME)
     {
+      showTime(RTC.now(), true);
       tasks.stopTask(set_time_mode);
       tasks.stopTask(return_to_default_mode);
       return;
@@ -491,6 +497,9 @@ void showTimerMode()
       }
       break;
     }
+    btnUp.resetButtonState();
+    btnDown.resetButtonState();
+    returnToDefMode();
   }
 
   if (btnTimer.getBtnFlag() == BTN_FLAG_NEXT)
@@ -597,11 +606,11 @@ void setDisplayData(int8_t num_left, int8_t num_right, bool show_colon)
   tm.setSegments(data);
 }
 
-void showTime(DateTime dt)
+void showTime(DateTime dt, bool force)
 {
   static bool p = blink_flag;
-  // вывод делается только в момент смены состояния блинка, т.е. через каждые 500 милисекунд
-  if (p != blink_flag)
+  // вывод делается только в момент смены состояния блинка, т.е. через каждые 500 милисекунд, или по флагу принудительного обновления
+  if (p != blink_flag || force)
   {
     setDisplayData(dt.hour(), dt.minute(), blink_flag);
     p = !p;

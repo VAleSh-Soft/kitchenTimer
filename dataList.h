@@ -106,7 +106,7 @@ public:
     int16_t n = findData(_data);
     if (n < 0)
     {
-      n = (last_index == FIRST_INDEX) ? last_index : last_index - 2;
+      n = (last_index == MAX_INDEX) ? last_index - 2 : last_index;
     }
     else
     {
