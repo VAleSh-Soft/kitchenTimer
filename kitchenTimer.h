@@ -4,7 +4,7 @@
 
 // #define USE_LIGHT_SENSOR // использовать или нет датчик света на пине А6 для регулировки яркости дисплея
 
-#define DISPLAY_MODE_SHOW_TIME 0     // основной режим - вывод времени на индикатор
+#define DISPLAY_MODE_SHOW_TIME 0     // основной режим - вывод времени на экран
 #define DISPLAY_MODE_SET_HOUR 1      // режим настройки часов
 #define DISPLAY_MODE_SET_MINUTE 2    // режим настройки минут
 #define DISPLAY_MODE_SHOW_TEMP 3     // режим вывода температуры
@@ -41,26 +41,32 @@ void showTimeSetting();
 void showTemp();
 void setLeds();
 void showTimerMode();
+void runBuzzer();
+void restartBuzzer();
 #ifdef USE_LIGHT_SENSOR
 void setBrightness();
 #endif
 
-// ==== вывод данных на дисплей ======================
-// вывод времени на индикатор
+// ==== вывод данных на экран ========================
+// вывод на экран времени
 void showTime(DateTime dt);
 // вывод на экран данных в режиме настройки времени и в таймерных режимах
 void showTimeData(byte hour, byte minute);
-// отрисовка данных на дисплее
+// отрисовка данных на экране
 void setDisplayData(int8_t num_left, int8_t num_right, bool show_colon);
 
 // ==== часы =========================================
 // сохранение времени после настройки
 void saveTime(byte hour, byte minute);
 
+// ==== таймеры ======================================
+void checkTimers();
+
 // ==== разное =======================================
 // изменение данных по клику кнопки с контролем выхода за предельное значение
 void checkData(byte &dt, byte max, bool toUp);
-void checkData(uint16_t &dt, uint16_t max, bool toUp);
-
+// то же самое, но для таймеров и без выхода за нуль
+void checkTimerData(uint16_t &dt, uint16_t max, bool toUp);
 // вывод данных на экран
 void setDisplay();
+

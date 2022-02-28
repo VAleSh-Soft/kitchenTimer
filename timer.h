@@ -21,6 +21,7 @@ private:
   byte timer_second = 0;
   byte _second = 255;
   byte timer_flag = TIMER_FLAG_NONE;
+  bool check_flag = false;
   byte led_green, led_red;
 
 public:
@@ -58,6 +59,7 @@ public:
         if (timer_count == 0)
         {
           timer_flag = TIMER_FLAG_STOP;
+          check_flag = true;
           _second = 255;
         }
         break;
@@ -65,6 +67,7 @@ public:
         if (timer_count == _time.hour() * 60 + _time.minute())
         {
           timer_flag = TIMER_FLAG_STOP;
+          check_flag = true;
         }
         break;
       }
@@ -104,5 +107,12 @@ public:
   void setTimerFlag(byte _flag)
   {
     timer_flag = (_flag > TIMER_FLAG_STOP) ? TIMER_FLAG_STOP : _flag;
+  }
+
+  bool getCheckFlag()
+  {
+    bool result = check_flag;
+    check_flag = false;
+    return (result);
   }
 };

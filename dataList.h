@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include <avr/eeprom.h>
 
-// класс списка сохраненных значений таймера 
+// класс списка сохраненных значений таймера
 class DataList
 {
 private:
@@ -106,7 +106,7 @@ public:
     int16_t n = findData(_data);
     if (n < 0)
     {
-      n = last_index - 2;
+      n = (last_index == FIRST_INDEX) ? last_index : last_index - 2;
     }
     else
     {
