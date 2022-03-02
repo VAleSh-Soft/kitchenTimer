@@ -69,4 +69,5 @@ void checkData(byte &dt, byte max, bool toUp);
 void checkTimerData(uint16_t &dt, uint16_t max, bool toUp);
 // вывод данных на экран
 void setDisplay();
-
+// получение текущего количества минут с полуночи
+uint16_t getCurMinuteCount();

@@ -67,6 +67,7 @@ public:
         if (timer_count == _time.hour() * 60 + _time.minute())
         {
           timer_flag = TIMER_FLAG_STOP;
+          timer_count = 0;
           check_flag = true;
         }
         break;
@@ -107,6 +108,11 @@ public:
   void setTimerFlag(byte _flag)
   {
     timer_flag = (_flag > TIMER_FLAG_STOP) ? TIMER_FLAG_STOP : _flag;
+  }
+
+  byte getTimerType()
+  {
+    return (timer_type);
   }
 
   bool getCheckFlag()

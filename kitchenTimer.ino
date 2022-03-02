@@ -212,6 +212,7 @@ void checkTimerButton()
       break;
     case DISPLAY_MODE_SHOW_TIMER_1:
       displayMode = DISPLAY_MODE_SHOW_TIMER_2;
+      tasks.stopTask(show_timer_mode); // это чтобы переинициализировались значения таймера
       break;
     case DISPLAY_MODE_SHOW_TIMER_2:
       returnToDefMode();
@@ -401,59 +402,53 @@ void setLeds()
   setStateLed(timer_2);
 }
 
-void startPauseTimer(Timer &tmr)
-{
-  if (tmr.getTimerFlag() < TIMER_FLAG_STOP)
-  {
-    if (displayMode == DISPLAY_MODE_SHOW_TIMER_1 &&
-        tmr.getTimerFlag() == TIMER_FLAG_NONE &&
-        tmr.getTimerCount() > 0)
-    { // сохранять данные можно только для первого таймера
-      data_list.saveNewData(tmr.getTimerCount());
-    }
-    if (tmr.getTimerFlag() == TIMER_FLAG_RUN && displayMode == DISPLAY_MODE_SHOW_TIMER_1)
-    { // на паузу можно поставить только первый таймер
-      tmr.setTimerFlag(TIMER_FLAG_PAUSED);
-    }
-    else
-    {
-      tmr.setTimerFlag(TIMER_FLAG_RUN);
-    }
-  }
-}
-
-void stopTimer(Timer &tmr)
-{
-  tmr.setTimerFlag(TIMER_FLAG_NONE);
-  if (displayMode == DISPLAY_MODE_SHOW_TIMER_1)
-  {
-    tmr.setTimerCount(0);
-  }
-}
-
 void showTimerMode()
 {
+  Timer *tmr;
+  // определить действующий таймер
+  switch (displayMode)
+  {
+  case DISPLAY_MODE_SHOW_TIMER_1:
+    tmr = &timer_1;
+    break;
+  case DISPLAY_MODE_SHOW_TIMER_2:
+    tmr = &timer_2;
+    break;
+  }
+
   if (!tasks.getTaskState(show_timer_mode))
   {
     tasks.startTask(show_timer_mode);
     tasks.setTaskInterval(return_to_default_mode, AUTO_EXIT_TIMEOUT * 2000ul);
     restartBlink();
-    if (displayMode == DISPLAY_MODE_SHOW_TIMER_1 && timer_1.getTimerFlag() == TIMER_FLAG_NONE && timer_1.getTimerCount() == 0)
+    // инициализировать начальное значение таймера, если оно нулевое, и таймер в состоянии покоя
+    if (tmr->getTimerFlag() == TIMER_FLAG_NONE)
     {
-      timer_1.setTimerCount(data_list.getFirst());
+      if (tmr->getTimerCount() == 0)
+      {
+        switch (tmr->getTimerType())
+        {
+        case IS_TIMER:
+          tmr->setTimerCount(data_list.getFirst());
+          break;
+        case IS_ALARM:
+          tmr->setTimerCount(data_list.getFirst() + getCurMinuteCount());
+          break;
+        }
+      }
     }
   }
 
   // опрос кнопок =====================
   if (btnSet.getBtnFlag() == BTN_FLAG_NEXT)
   {
-    switch (displayMode)
+    switch (tmr->getTimerType())
     {
-    case DISPLAY_MODE_SHOW_TIMER_1:
-      timer_1.setTimerCount(data_list.getNext());
+    case IS_TIMER:
+      tmr->setTimerCount(data_list.getNext());
       break;
-    case DISPLAY_MODE_SHOW_TIMER_2:
-
+    case IS_ALARM:
+      tmr->setTimerCount(data_list.getNext() + getCurMinuteCount());
       break;
     }
     btnSet.setBtnFlag(BTN_FLAG_NONE);
@@ -461,44 +456,41 @@ void showTimerMode()
 
   if ((btnUp.getBtnFlag() == BTN_FLAG_NEXT) || (btnDown.getBtnFlag() == BTN_FLAG_NEXT))
   {
-    bool dir = btnUp.getBtnFlag() == BTN_FLAG_NEXT;
-    uint16_t t_data;
-    switch (displayMode)
+    uint16_t t_data = tmr->getTimerCount();
+    checkTimerData(t_data, MAX_DATA, btnUp.getBtnFlag() == BTN_FLAG_NEXT);
+    switch (tmr->getTimerType())
     {
-    case DISPLAY_MODE_SHOW_TIMER_1:
-      t_data = timer_1.getTimerCount();
-      checkTimerData(t_data, MAX_DATA, dir);
-      timer_1.setTimerCount(t_data);
+    case IS_TIMER:
+      if (t_data <= MAX_DATA)
+      {
+        tmr->setTimerCount(t_data);
+      }
       if (t_data == 0)
       {
-        timer_1.setTimerFlag(TIMER_FLAG_NONE);
+        tmr->setTimerFlag(TIMER_FLAG_NONE);
       }
       break;
-    case DISPLAY_MODE_SHOW_TIMER_2:
-
+    case IS_ALARM:
+      // исключаем кольцевой перебор значений; при увеличении значений останавливаемся за минуту до текущего времени, при уменьшении останавливаемся на текущем времени
+      uint16_t _data = (btnUp.getBtnFlag() == BTN_FLAG_NEXT) ? t_data : tmr->getTimerCount();
+      if (_data != getCurMinuteCount())
+      {
+        tmr->setTimerCount(t_data);
+      }
+      if (t_data == getCurMinuteCount())
+      {
+        tmr->setTimerFlag(TIMER_FLAG_NONE);
+      }
       break;
     }
     btnUp.setBtnFlag(BTN_FLAG_NONE);
     btnDown.setBtnFlag(BTN_FLAG_NONE);
   }
-  // остановка таймера по нажатию двух кнопок - Up+Down
+  // сброс таймера по нажатию двух кнопок - Up+Down
   if (btnUp.isButtonClosed() && btnDown.isButtonClosed())
   {
-    switch (displayMode)
-    {
-    case DISPLAY_MODE_SHOW_TIMER_1:
-      if (timer_1.getTimerFlag() > TIMER_FLAG_NONE && timer_1.getTimerFlag() < TIMER_FLAG_STOP)
-      {
-        stopTimer(timer_1);
-      }
-      break;
-    case DISPLAY_MODE_SHOW_TIMER_2:
-      if (timer_2.getTimerFlag() > TIMER_FLAG_NONE && timer_2.getTimerFlag() < TIMER_FLAG_STOP)
-      {
-        stopTimer(timer_2);
-      }
-      break;
-    }
+    tmr->setTimerFlag(TIMER_FLAG_NONE);
+    tmr->setTimerCount(0);
     btnUp.resetButtonState();
     btnDown.resetButtonState();
     returnToDefMode();
@@ -506,36 +498,46 @@ void showTimerMode()
 
   if (btnTimer.getBtnFlag() == BTN_FLAG_NEXT)
   {
-    switch (displayMode)
+    if ((tmr->getTimerType() == IS_TIMER && tmr->getTimerCount() > 0) ||
+        (tmr->getTimerType() == IS_ALARM && tmr->getTimerCount() != getCurMinuteCount()))
     {
-    case DISPLAY_MODE_SHOW_TIMER_1:
-      if (timer_1.getTimerCount() > 0)
+      if (tmr->getTimerFlag() < TIMER_FLAG_STOP)
       {
-        startPauseTimer(timer_1);
+        if (tmr->getTimerType() == IS_TIMER &&
+            tmr->getTimerFlag() == TIMER_FLAG_NONE &&
+            tmr->getTimerCount() > 0)
+        { // сохранять данные нужно только для таймера, для будильника не нужно
+          data_list.saveNewData(tmr->getTimerCount());
+        }
+        if (tmr->getTimerFlag() == TIMER_FLAG_RUN && tmr->getTimerType() == IS_TIMER)
+        { // на паузу можно поставить только таймер, для будильника это бессмысленно
+          tmr->setTimerFlag(TIMER_FLAG_PAUSED);
+        }
+        else
+        {
+          tmr->setTimerFlag(TIMER_FLAG_RUN);
+        }
       }
-      break;
-    case DISPLAY_MODE_SHOW_TIMER_2:
-      startPauseTimer(timer_2);
-      break;
     }
     btnTimer.setBtnFlag(BTN_FLAG_NONE);
   }
 
   // вывод данных на экран ============
-  switch (displayMode)
+  switch (tmr->getTimerType())
   {
-  case DISPLAY_MODE_SHOW_TIMER_1:
-    if (timer_1.getTimerCount() > 1 || timer_1.getTimerFlag() == TIMER_FLAG_NONE)
+  case IS_TIMER:
+    if (tmr->getTimerCount() > 1 || tmr->getTimerFlag() == TIMER_FLAG_NONE ||
+        btnUp.isButtonClosed() || btnDown.isButtonClosed())
     {
-      showTimeData(timer_1.getTimerCount() / 60, timer_1.getTimerCount() % 60);
+      showTimeData(tmr->getTimerCount() / 60, tmr->getTimerCount() % 60);
     }
     else
     {
-      (timer_1.getTimerFlag() == TIMER_FLAG_STOP) ? showTimeData(0, 0) : showTimeData(0, timer_1.getTimerSecond());
+      (tmr->getTimerFlag() == TIMER_FLAG_STOP) ? showTimeData(0, 0) : showTimeData(0, tmr->getTimerSecond());
     }
     break;
-  case DISPLAY_MODE_SHOW_TIMER_2:
-    showTimeData(timer_2.getTimerCount() / 60, timer_2.getTimerCount() % 60);
+  case IS_ALARM:
+    showTimeData(tmr->getTimerCount() / 60, tmr->getTimerCount() % 60);
     break;
   }
 }
@@ -720,6 +722,12 @@ void setDisplay()
     }
     break;
   }
+}
+
+uint16_t getCurMinuteCount()
+{
+  DateTime dt = RTC.now();
+  return (dt.hour() * 60 + dt.minute());
 }
 
 // ===================================================
