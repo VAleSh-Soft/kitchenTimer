@@ -91,7 +91,7 @@ public:
 
   void setTimerCount(uint16_t _count)
   {
-    timer_count = (_count > MAX_DATA) ? MAX_DATA : _count;
+    timer_count = (_count > MAX_DATA) ? _count - (MAX_DATA + 1) : _count;
   }
 
   byte getTimerSecond()

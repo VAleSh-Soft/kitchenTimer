@@ -95,6 +95,14 @@ ktButton btnDown(BTN_DOWN_PIN);   // кнопка Down - изменение ча
 ktButton btnTimer(BTN_TIMER_PIN); // кнопка Timer - работа с таймерами
 
 // ===================================================
+void clearStopFlag(Timer &tmr)
+{
+  if (tmr.getTimerFlag() == TIMER_FLAG_STOP)
+  {
+    tmr.setTimerFlag(TIMER_FLAG_NONE);
+  }
+}
+
 void checkButton()
 {
   checkSetButton();
@@ -104,14 +112,8 @@ void checkButton()
   if ((btnSet.getLastState() == BTN_DOWN) || (btnUp.getLastState() == BTN_DOWN) ||
       (btnDown.getLastState() == BTN_DOWN) || (btnTimer.getLastState() == BTN_DOWN))
   {
-    if (timer_1.getTimerFlag() == TIMER_FLAG_STOP)
-    {
-      timer_1.setTimerFlag(TIMER_FLAG_NONE);
-    }
-    if (timer_2.getTimerFlag() == TIMER_FLAG_STOP)
-    {
-      timer_2.setTimerFlag(TIMER_FLAG_NONE);
-    }
+    clearStopFlag(timer_1);
+    clearStopFlag(timer_2);
   }
 }
 
@@ -652,16 +654,18 @@ void saveTime(byte hour, byte minute)
 }
 
 // ===================================================
+void _checkTimer(Timer &tmr)
+{
+  if (tmr.getTimerFlag() == TIMER_FLAG_RUN)
+  {
+    tmr.tick(RTC.now());
+  }
+}
+
 void checkTimers()
 {
-  if (timer_1.getTimerFlag() == TIMER_FLAG_RUN)
-  {
-    timer_1.tick(RTC.now());
-  }
-  if (timer_2.getTimerFlag() == TIMER_FLAG_RUN)
-  {
-    timer_2.tick(RTC.now());
-  }
+  _checkTimer(timer_1);
+  _checkTimer(timer_2);
 
   if ((timer_1.getCheckFlag()) || (timer_2.getCheckFlag()))
   {
@@ -749,7 +753,7 @@ void setup()
   set_time_mode = tasks.addTask(100, showTimeSetting, false);
   show_temp_mode = tasks.addTask(500, showTemp, false);
   leds_guard = tasks.addTask(100, setLeds);
-  show_timer_mode = tasks.addTask(100, showTimerMode, false);
+  show_timer_mode = tasks.addTask(50, showTimerMode, false);
   run_buzzer = tasks.addTask(100, runBuzzer, false);
 #ifdef USE_LIGHT_SENSOR
   light_sensor_guard = tasks.addTask(100, setBrightness);
