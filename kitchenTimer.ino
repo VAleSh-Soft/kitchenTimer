@@ -1,6 +1,7 @@
 #include <TM1637Display.h>
 #include <Wire.h>   // Подключаем библиотеку для работы с I2C устройствами
 #include <DS3231.h> // Подключаем библиотеку для работы с RTC DS3231
+#include <avr/eeprom.h>
 #include "kitchenTimer.h"
 #include "timer.h"
 #include "dataList.h"
@@ -16,9 +17,9 @@
 TM1637Display tm(11, 10); // CLK, DAT
 DS3231 clock;             // SDA - A4, SCL - A5
 RTClib RTC;
-DataList data_list; // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t
+DataList data_list(DATA_LIST_INDEX, 10); // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t
 Timer timer_1(IS_TIMER, LED_TIMER1_GREEN_PIN, LED_TIMER1_RED_PIN);
-Timer timer_2(IS_ALARM, LED_TIMER2_GREEN_PIN, LED_TIMER2_RED_PIN);
+Timer timer_2(IS_TIMER, LED_TIMER2_GREEN_PIN, LED_TIMER2_RED_PIN);
 
 #ifdef USE_LIGHT_SENSOR
 shTaskManager tasks(8); // создаем список задач
@@ -53,7 +54,7 @@ private:
 public:
   ktButton(byte button_pin) : shButton(button_pin)
   {
-    shButton::setTimeout(1000);
+    shButton::setTimeout(800);
     shButton::setLongClickMode(LCM_ONLYONCE);
     shButton::setVirtualClickOn(true);
     shButton::setDebounce(50);
@@ -201,6 +202,15 @@ void checkTimerButton()
     case DISPLAY_MODE_SHOW_TIMER_1:
     case DISPLAY_MODE_SHOW_TIMER_2:
       btnTimer.setBtnFlag(BTN_FLAG_NEXT);
+      break;
+    }
+    break;
+  case BTN_DBLCLICK:
+    switch (displayMode)
+    {
+    case DISPLAY_MODE_SHOW_TIMER_1:
+    case DISPLAY_MODE_SHOW_TIMER_2:
+      btnTimer.setBtnFlag(BTN_FLAG_EXIT);
       break;
     }
     break;
@@ -405,6 +415,7 @@ void setLeds()
 void showTimerChar(byte _type)
 {
   uint8_t data[] = {0x00, 0x00, 0x00, 0x00};
+  // IS_TIMER - dur, IS_ALARM - End
   data[0] = (_type == IS_TIMER) ? 0b01011110 : 0b01111001;
   data[1] = (_type == IS_TIMER) ? 0b00011100 : 0b01010100;
   data[2] = (_type == IS_TIMER) ? 0b01010000 : 0b01011110;
@@ -514,8 +525,9 @@ void showTimerMode()
     returnToDefMode();
   }
 
-  if (btnTimer.getBtnFlag() == BTN_FLAG_NEXT)
+  switch (btnTimer.getBtnFlag())
   {
+  case BTN_FLAG_NEXT:
     if ((tmr->getTimerType() == IS_TIMER && tmr->getTimerCount() > 0) ||
         (tmr->getTimerType() == IS_ALARM && tmr->getTimerCount() != getCurMinuteCount()))
     {
@@ -537,8 +549,19 @@ void showTimerMode()
         }
       }
     }
-    btnTimer.setBtnFlag(BTN_FLAG_NONE);
+    break;
+  case BTN_FLAG_EXIT:
+    if (tmr->getTimerFlag() == TIMER_FLAG_NONE)
+    { // смена типа таймера по двойному клику таймер-кнопки
+      tmr->setTimerType(!tmr->getTimerType());
+      tmr->setTimerCount(0);
+      uint16_t x = (displayMode == DISPLAY_MODE_SHOW_TIMER_1) ? TIMER_1_TYPE_INDEX : TIMER_2_TYPE_INDEX;
+      eeprom_update_byte(x, tmr->getTimerType());
+      tasks.stopTask(show_timer_mode);
+    }
+    break;
   }
+  btnTimer.setBtnFlag(BTN_FLAG_NONE);
 
   // вывод данных на экран ============
   switch (tmr->getTimerType())
@@ -752,6 +775,19 @@ uint16_t getCurMinuteCount()
 void setup()
 {
   //  Serial.begin(9600);
+
+  // ==== таймеры ======================================
+  if (eeprom_read_byte(TIMER_1_TYPE_INDEX) > IS_ALARM)
+  {
+    eeprom_update_byte(TIMER_1_TYPE_INDEX, IS_TIMER);
+  }
+  if (eeprom_read_byte(TIMER_2_TYPE_INDEX) > IS_ALARM)
+  {
+    eeprom_update_byte(TIMER_2_TYPE_INDEX, IS_TIMER);
+  }
+
+  timer_1.setTimerType(eeprom_read_byte(TIMER_1_TYPE_INDEX));
+  timer_2.setTimerType(eeprom_read_byte(TIMER_2_TYPE_INDEX));
 
   // ==== часы =========================================
   Wire.begin();

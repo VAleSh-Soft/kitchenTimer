@@ -6,16 +6,16 @@
 class DataList
 {
 private:
-#define DATA_COUNT 10
-#define FIRST_INDEX 100
-#define MAX_INDEX 118
-  uint16_t last_index = FIRST_INDEX;
-  uint16_t cur_index = FIRST_INDEX;
+  uint8_t data_count = 10;
+  uint16_t first_index = 100;
+  uint16_t max_index = 118;
+  uint16_t last_index = first_index;
+  uint16_t cur_index = first_index;
 
   uint16_t getData(uint16_t _index)
   {
     uint16_t result = 0;
-    if ((_index >= FIRST_INDEX) && (_index <= MAX_INDEX) && !((_index) >> (0) & 0x01))
+    if ((_index >= first_index) && (_index <= max_index) && !((_index) >> (0) & 0x01))
     {
       result = eeprom_read_word(_index);
       if (result > MAX_DATA)
@@ -32,14 +32,14 @@ private:
   {
     if ((cur_index += 2) > last_index)
     {
-      cur_index = FIRST_INDEX;
+      cur_index = first_index;
     }
   }
 
   void getLastIndex()
   {
-    last_index = FIRST_INDEX;
-    for (uint16_t i = FIRST_INDEX; i <= MAX_INDEX; i += 2)
+    last_index = first_index;
+    for (uint16_t i = first_index; i <= max_index; i += 2)
     {
       if (eeprom_read_word(i) > 0)
       {
@@ -50,9 +50,9 @@ private:
         break;
       }
     }
-    if (last_index < MAX_INDEX)
+    if (last_index < max_index)
     {
-      for (uint16_t i = last_index + 2; i <= MAX_INDEX; i += 2)
+      for (uint16_t i = last_index + 2; i <= max_index; i += 2)
       {
         eeprom_update_word(i, 0);
       }
@@ -62,7 +62,7 @@ private:
   int16_t findData(uint16_t _data)
   {
     int16_t result = -1;
-    for (uint16_t i = FIRST_INDEX; i <= last_index; i += 2)
+    for (uint16_t i = first_index; i <= last_index; i += 2)
     {
       if (getData(i) == _data)
       {
@@ -74,9 +74,12 @@ private:
   }
 
 public:
-  DataList()
+  DataList(uint16_t _first_index, uint8_t _count)
   {
-    for (uint16_t i = FIRST_INDEX; i <= MAX_INDEX; i += 2)
+    data_count = _count;
+    first_index = _first_index;
+    max_index = first_index + data_count * 2 - 2;
+    for (uint16_t i = first_index; i <= max_index; i += 2)
     {
       if (eeprom_read_word(i) > MAX_DATA)
       {
@@ -89,7 +92,7 @@ public:
   // получение данных из первой ячейки
   uint16_t getFirst()
   {
-    cur_index = FIRST_INDEX;
+    cur_index = first_index;
     return (getData(cur_index));
   }
 
@@ -106,20 +109,20 @@ public:
     int16_t n = findData(_data);
     if (n < 0)
     {
-      n = (last_index == MAX_INDEX) ? last_index - 2 : last_index;
+      n = (last_index == max_index) ? last_index - 2 : last_index;
     }
     else
     {
       n -= 2;
     }
-    if (n >= FIRST_INDEX)
+    if (n >= first_index)
     {
-      for (uint16_t i = n; i >= FIRST_INDEX; i -= 2)
+      for (uint16_t i = n; i >= first_index; i -= 2)
       {
         eeprom_update_word(i + 2, getData(i));
       }
     }
-    eeprom_update_word(FIRST_INDEX, _data);
+    eeprom_update_word(first_index, _data);
     getLastIndex();
   }
 };

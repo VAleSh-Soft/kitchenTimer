@@ -27,6 +27,10 @@
 #define LIGHT_SENSOR_PIN A6
 #endif
 
+#define TIMER_1_TYPE_INDEX 98 // индекс в EEPROM для сохранения типа первого таймера
+#define TIMER_2_TYPE_INDEX 99 // индекс в EEPROM для сохранения типа второго таймера
+#define DATA_LIST_INDEX 100   // первый индекс в EEPROM для хранения списка сохраненных значений таймера
+
 // ==== опрос кнопок =================================
 void checkButton();
 void checkSetButton();
