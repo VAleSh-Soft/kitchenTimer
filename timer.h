@@ -115,6 +115,11 @@ public:
     return (timer_type);
   }
 
+  void setTimerType(byte _type)
+  {
+    timer_type = (_type > IS_ALARM) ? IS_ALARM : _type;
+  }
+
   bool getCheckFlag()
   {
     bool result = check_flag;

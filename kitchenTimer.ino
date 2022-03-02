@@ -402,8 +402,18 @@ void setLeds()
   setStateLed(timer_2);
 }
 
+void showTimerChar(byte _type)
+{
+  uint8_t data[] = {0x00, 0x00, 0x00, 0x00};
+  data[0] = (_type == IS_TIMER) ? 0b01011110 : 0b01111001;
+  data[1] = (_type == IS_TIMER) ? 0b00011100 : 0b01010100;
+  data[2] = (_type == IS_TIMER) ? 0b01010000 : 0b01011110;
+  tm.setSegments(data);
+}
+
 void showTimerMode()
 {
+  static byte n = 0;
   Timer *tmr;
   // определить действующий таймер
   switch (displayMode)
@@ -418,6 +428,7 @@ void showTimerMode()
 
   if (!tasks.getTaskState(show_timer_mode))
   {
+    n = 0;
     tasks.startTask(show_timer_mode);
     tasks.setTaskInterval(return_to_default_mode, AUTO_EXIT_TIMEOUT * 2000ul);
     restartBlink();
@@ -437,6 +448,13 @@ void showTimerMode()
         }
       }
     }
+  }
+
+  if (n < 20)
+  {
+    showTimerChar(tmr->getTimerType());
+    n++;
+    return;
   }
 
   // опрос кнопок =====================

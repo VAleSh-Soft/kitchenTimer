@@ -60,7 +60,10 @@ void setDisplayData(int8_t num_left, int8_t num_right, bool show_colon);
 void saveTime(byte hour, byte minute);
 
 // ==== таймеры ======================================
+// проверка состояния таймеров
 void checkTimers();
+// показ обозначения типа таймера при входе в таймерный режим
+void showTimerChar(byte _type);
 
 // ==== разное =======================================
 // изменение данных по клику кнопки с контролем выхода за предельное значение
