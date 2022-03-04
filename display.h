@@ -2,7 +2,11 @@
 #include <Arduino.h>
 #include <TM1637Display.h> // https://github.com/avishorp/TM1637
 
-TM1637Display tm(11, 10); // CLK, DAT
+// пины для подключения экрана
+#define DISPLAY_CLK_PIN 11
+#define DISPLAY_DAT_PIN 10
+
+TM1637Display tm(DISPLAY_CLK_PIN, DISPLAY_CLK_PIN);
 
 // ==== класс для вывода данных на экран =============
 class Display
