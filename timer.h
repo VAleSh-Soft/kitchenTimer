@@ -1,6 +1,6 @@
 #pragma once
 #include <Arduino.h>
-#include <DS3231.h>
+#include <DS3231.h> // https://github.com/NorthernWidget/DS3231
 
 #define MAX_DATA 1439 // максимальное количество минут для установки таймера (23 ч, 59 мин)
 
@@ -36,6 +36,29 @@ public:
     led_red = _led_red;
   }
 
+  void stop(bool clear = false)
+  {
+    _second = 255;
+    timer_count = 0;
+    timer_flag = (clear) ? TIMER_FLAG_NONE : TIMER_FLAG_STOP;
+    check_flag = !clear;
+  }
+
+  void startPause()
+  {
+    if (timer_flag != TIMER_FLAG_STOP)
+    {
+      if (timer_flag == TIMER_FLAG_RUN && timer_type == IS_TIMER)
+      { // на паузу можно поставить только таймер, для будильника это бессмысленно
+        timer_flag = TIMER_FLAG_PAUSED;
+      }
+      else
+      {
+        timer_flag = TIMER_FLAG_RUN;
+      }
+    }
+  }
+
   void tick(DateTime _time)
   {
     if (timer_flag = TIMER_FLAG_RUN)
@@ -58,17 +81,13 @@ public:
         }
         if (timer_count == 0)
         {
-          timer_flag = TIMER_FLAG_STOP;
-          check_flag = true;
-          _second = 255;
+          stop();
         }
         break;
       case IS_ALARM:
         if (timer_count == _time.hour() * 60 + _time.minute())
         {
-          timer_flag = TIMER_FLAG_STOP;
-          timer_count = 0;
-          check_flag = true;
+          stop();
         }
         break;
       }

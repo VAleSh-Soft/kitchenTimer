@@ -6,11 +6,12 @@
 class DataList
 {
 private:
-  uint8_t data_count = 10;
-  uint16_t first_index = 100;
-  uint16_t max_index = 118;
-  uint16_t last_index = first_index;
-  uint16_t cur_index = first_index;
+  uint8_t data_count = 10;           // количество сохраняемых записей
+  uint16_t first_index = 100;        // начальный индекс для сохранения
+  uint16_t max_index = 118;          // конечный индекс для сохранения
+  uint16_t last_index = first_index; // последний индекс с сохраненным значением; дальше идут пустые ячейки
+  uint16_t cur_index = first_index;  // текущий индекс списка
+  uint16_t max_data = 1439;          // максимальное значение, которое может храниться в ячейке
 
   uint16_t getData(uint16_t _index)
   {
@@ -18,9 +19,9 @@ private:
     if ((_index >= first_index) && (_index <= max_index) && !((_index) >> (0) & 0x01))
     {
       result = eeprom_read_word(_index);
-      if (result > MAX_DATA)
+      if (result > max_data)
       {
-        result = MAX_DATA;
+        result = max_data;
         eeprom_update_word(_index, result);
       }
     }
@@ -74,14 +75,15 @@ private:
   }
 
 public:
-  DataList(uint16_t _first_index, uint8_t _count)
+  DataList(uint16_t _first_index, uint8_t _count, uint16_t _max_data)
   {
     data_count = _count;
     first_index = _first_index;
     max_index = first_index + data_count * 2 - 2;
+    max_data = _max_data;
     for (uint16_t i = first_index; i <= max_index; i += 2)
     {
-      if (eeprom_read_word(i) > MAX_DATA)
+      if (eeprom_read_word(i) > max_data)
       {
         eeprom_update_word(i, 0);
       }

@@ -1,30 +1,30 @@
-#include <TM1637Display.h>
-#include <Wire.h>   // Подключаем библиотеку для работы с I2C устройствами
-#include <DS3231.h> // Подключаем библиотеку для работы с RTC DS3231
-#include <avr/eeprom.h>
-#include "kitchenTimer.h"
-#include "timer.h"
+#include <Wire.h>
+#include <DS3231.h> // https://github.com/NorthernWidget/DS3231
 #include "dataList.h"
-#include <shButton.h>
-#include <shTaskManager.h>
+#include "display.h"
+#include "timer.h"
+#include "kitchenTimer.h"
+#include <shButton.h>      // https://github.com/VAleSh-Soft/shButton
+#include <shTaskManager.h> // https://github.com/VAleSh-Soft/shTaskManager
 
 // ==== настройки ====================================
 #define MIN_DISPLAY_BRIGHTNESS 1 // минимальная яркость дисплея, 1-7
 #define MAX_DISPLAY_BRIGHTNESS 7 // максимальная яркость дисплея, 1-7
+#define LIGHT_THRESHOLD 300      // порог переключения для датчика света
 #define AUTO_EXIT_TIMEOUT 6      // время автоматического возврата в режим показа текущего времени из любых других режимов при отсутствии активности пользователя, секунд
 // ===================================================
 
-TM1637Display tm(11, 10); // CLK, DAT
-DS3231 clock;             // SDA - A4, SCL - A5
+Display disp;
+DS3231 clock; // SDA - A4, SCL - A5
 RTClib RTC;
-DataList data_list(DATA_LIST_INDEX, 10); // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t
+DataList data_list(DATA_LIST_INDEX, 10, MAX_DATA); // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t, 10 записей, максимальное значение - 1439
 Timer timer_1(IS_TIMER, LED_TIMER1_GREEN_PIN, LED_TIMER1_RED_PIN);
 Timer timer_2(IS_TIMER, LED_TIMER2_GREEN_PIN, LED_TIMER2_RED_PIN);
 
 #ifdef USE_LIGHT_SENSOR
-shTaskManager tasks(8); // создаем список задач
+shTaskManager tasks(9); // создаем список задач
 #else
-shTaskManager tasks(7); // создаем список задач
+shTaskManager tasks(8); // создаем список задач
 #endif
 
 shHandle blink_timer;            // блинк
@@ -32,6 +32,7 @@ shHandle return_to_default_mode; // таймер автовозврата в р�
 shHandle set_time_mode;          // режим настройки времени
 shHandle show_temp_mode;         // режим показа температуры
 shHandle leds_guard;             // управление индикаторными светодиодами
+shHandle display_guard;          // вывод данных на экран
 shHandle show_timer_mode;        // режим показа таймера ))
 shHandle run_buzzer;             // пищалка
 #ifdef USE_LIGHT_SENSOR
@@ -267,7 +268,7 @@ void returnToDefMode()
   case DISPLAY_MODE_SHOW_TIMER_1:
   case DISPLAY_MODE_SHOW_TIMER_2:
     displayMode = DISPLAY_MODE_SHOW_TIME;
-    showTime(RTC.now(), true);
+    showTime(RTC.now());
     tasks.stopTask(show_timer_mode);
     break;
   }
@@ -315,7 +316,7 @@ void showTimeSetting()
     btnSet.setBtnFlag(BTN_FLAG_NONE);
     if (displayMode == DISPLAY_MODE_SHOW_TIME)
     {
-      showTime(RTC.now(), true);
+      showTime(RTC.now());
       tasks.stopTask(set_time_mode);
       tasks.stopTask(return_to_default_mode);
       return;
@@ -351,14 +352,15 @@ void showTemp()
     tasks.startTask(show_temp_mode);
   }
 
-  uint8_t data[] = {0x00, 0x00, 0x00, 0x63};
+  disp.clear();
+  disp.setDispData(3, 0x63);
   int temp = int(clock.getTemperature());
   // если температура выходит за диапазон, сформировать строку минусов
   if (temp > 99 || temp < -99)
   {
     for (byte i = 0; i < 4; i++)
     {
-      data[i] = 0x40;
+      disp.setDispData(i, 0x40);
     }
   }
   else
@@ -366,20 +368,18 @@ void showTemp()
     if (temp < 0)
     {
       temp = -temp;
-      data[1] = 0x40;
+      disp.setDispData(1, 0x40);
     }
     if (temp > 9)
     { // если температура ниже -9, переместить минус на крайнюю левую позицию
-      if (data[1] == 0x40)
+      if (disp.getDispData(1) == 0x40)
       {
-        data[0] = 0x40;
+        disp.setDispData(0, 0x40);
       }
-      data[1] = tm.encodeDigit(temp / 10);
+      disp.setDispData(1, disp.encodeDigit(temp / 10));
     }
-    data[2] = tm.encodeDigit(temp % 10);
+    disp.setDispData(2, disp.encodeDigit(temp % 10));
   }
-  // вывести данные на экран ==========
-  tm.setSegments(data);
 }
 
 void setStateLed(Timer &tmr)
@@ -412,14 +412,18 @@ void setLeds()
   setStateLed(timer_2);
 }
 
+void setDisp()
+{
+  disp.show();
+}
+
 void showTimerChar(byte _type)
 {
-  uint8_t data[] = {0x00, 0x00, 0x00, 0x00};
   // IS_TIMER - dur, IS_ALARM - End
-  data[0] = (_type == IS_TIMER) ? 0b01011110 : 0b01111001;
-  data[1] = (_type == IS_TIMER) ? 0b00011100 : 0b01010100;
-  data[2] = (_type == IS_TIMER) ? 0b01010000 : 0b01011110;
-  tm.setSegments(data);
+  disp.setDispData(0, (_type == IS_TIMER) ? 0b01011110 : 0b01111001);
+  disp.setDispData(1, (_type == IS_TIMER) ? 0b00011100 : 0b01010100);
+  disp.setDispData(2, (_type == IS_TIMER) ? 0b01010000 : 0b01011110);
+  disp.setDispData(3, 0x00);
 }
 
 void showTimerMode()
@@ -518,8 +522,7 @@ void showTimerMode()
   // сброс таймера по нажатию двух кнопок - Up+Down
   if (btnUp.isButtonClosed() && btnDown.isButtonClosed())
   {
-    tmr->setTimerFlag(TIMER_FLAG_NONE);
-    tmr->setTimerCount(0);
+    tmr->stop(true);
     btnUp.resetButtonState();
     btnDown.resetButtonState();
     returnToDefMode();
@@ -539,14 +542,7 @@ void showTimerMode()
         { // сохранять данные нужно только для таймера, для будильника не нужно
           data_list.saveNewData(tmr->getTimerCount());
         }
-        if (tmr->getTimerFlag() == TIMER_FLAG_RUN && tmr->getTimerType() == IS_TIMER)
-        { // на паузу можно поставить только таймер, для будильника это бессмысленно
-          tmr->setTimerFlag(TIMER_FLAG_PAUSED);
-        }
-        else
-        {
-          tmr->setTimerFlag(TIMER_FLAG_RUN);
-        }
+        tmr->startPause();
       }
     }
     break;
@@ -597,6 +593,12 @@ void runBuzzer()
     n = 0;
     k = 0;
   }
+  else if ((timer_1.getTimerFlag() != TIMER_FLAG_STOP) &&
+           (timer_2.getTimerFlag() != TIMER_FLAG_STOP))
+  { // остановка пищалки, если таймеры сброшены
+    tasks.stopTask(run_buzzer);
+    return;
+  }
   tone(BUZZER_PIN, pgm_read_dword(&pick[0][n]), pgm_read_dword(&pick[1][n]));
   tasks.setTaskInterval(run_buzzer, pgm_read_dword(&pick[1][n]), true);
   if (++n >= 8)
@@ -607,10 +609,6 @@ void runBuzzer()
       tasks.stopTask(run_buzzer);
       k = 0;
     }
-  }
-  if ((timer_1.getTimerFlag() != TIMER_FLAG_STOP) && (timer_2.getTimerFlag() != TIMER_FLAG_STOP))
-  { // остановка пищалки, если таймеры сброшены
-    tasks.stopTask(run_buzzer);
   }
 }
 
@@ -625,41 +623,36 @@ void setBrightness()
 {
   static word b;
   b = (b * 2 + analogRead(LIGHT_SENSOR_PIN)) / 3;
-  byte c = (b < 300) ? MIN_DISPLAY_BRIGHTNESS : MAX_DISPLAY_BRIGHTNESS;
-  tm.setBrightness(c);
+  byte c = (b < LIGHT_THRESHOLD) ? MIN_DISPLAY_BRIGHTNESS : MAX_DISPLAY_BRIGHTNESS;
+  disp.setBrightness(c);
 }
 #endif
 
 // ===================================================
 void setDisplayData(int8_t num_left, int8_t num_right, bool show_colon)
 {
-  uint8_t data[] = {0x00, 0x00, 0x00, 0x00};
+  disp.clear();
   if (num_left >= 0)
   {
-    data[0] = tm.encodeDigit(num_left / 10);
-    data[1] = tm.encodeDigit(num_left % 10);
+    disp.setDispData(0, disp.encodeDigit(num_left / 10));
+    disp.setDispData(1, disp.encodeDigit(num_left % 10));
   }
   if (num_right >= 0)
   {
-    data[2] = tm.encodeDigit(num_right / 10);
-    data[3] = tm.encodeDigit(num_right % 10);
+    disp.setDispData(2, disp.encodeDigit(num_right / 10));
+    disp.setDispData(3, disp.encodeDigit(num_right % 10));
   }
   if (show_colon)
   {
-    data[1] |= (0x80); // для показа двоеточия установить старший бит во второй цифре
+    byte x = disp.getDispData(1);
+    x |= (0x80);
+    disp.setDispData(1, x); // для показа двоеточия установить старший бит во второй цифре
   }
-  tm.setSegments(data);
 }
 
-void showTime(DateTime dt, bool force)
+void showTime(DateTime dt)
 {
-  static bool p = blink_flag;
-  // вывод делается только в момент смены состояния блинка, т.е. через каждые 500 милисекунд, или по флагу принудительного обновления
-  if (p != blink_flag || force)
-  {
-    setDisplayData(dt.hour(), dt.minute(), blink_flag);
-    p = !p;
-  }
+  setDisplayData(dt.hour(), dt.minute(), blink_flag);
 }
 
 void showTimeData(byte hour, byte minute)
@@ -815,12 +808,13 @@ void setup()
   set_time_mode = tasks.addTask(100, showTimeSetting, false);
   show_temp_mode = tasks.addTask(500, showTemp, false);
   leds_guard = tasks.addTask(100, setLeds);
+  display_guard = tasks.addTask(50, setDisp);
   show_timer_mode = tasks.addTask(50, showTimerMode, false);
   run_buzzer = tasks.addTask(100, runBuzzer, false);
 #ifdef USE_LIGHT_SENSOR
   light_sensor_guard = tasks.addTask(100, setBrightness);
 #else
-  tm.setBrightness(MAX_DISPLAY_BRIGHTNESS);
+  disp.setBrightness(MAX_DISPLAY_BRIGHTNESS);
 #endif
 }
 

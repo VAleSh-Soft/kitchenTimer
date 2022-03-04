@@ -1,6 +1,6 @@
 #pragma once
 #include <Arduino.h>
-#include <DS3231.h>
+#include <DS3231.h> // https://github.com/NorthernWidget/DS3231
 
 // #define USE_LIGHT_SENSOR // использовать или нет датчик света на пине А6 для регулировки яркости дисплея
 
@@ -47,13 +47,14 @@ void setLeds();
 void showTimerMode();
 void runBuzzer();
 void restartBuzzer();
+void setDisp();
 #ifdef USE_LIGHT_SENSOR
 void setBrightness();
 #endif
 
 // ==== вывод данных на экран ========================
-// вывод на экран времени; force - флаг принудительного обновления, чтобы время отрисовывалось сразу после выхода из других режимов, а не через полсекунды, после смены блинка
-void showTime(DateTime dt, bool force = false);
+// вывод на экран времени
+void showTime(DateTime dt);
 // вывод на экран данных в режиме настройки времени и в таймерных режимах
 void showTimeData(byte hour, byte minute);
 // отрисовка данных на экране
