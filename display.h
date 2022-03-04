@@ -6,7 +6,7 @@
 #define DISPLAY_CLK_PIN 11
 #define DISPLAY_DAT_PIN 10
 
-TM1637Display tm(DISPLAY_CLK_PIN, DISPLAY_CLK_PIN);
+TM1637Display tm(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
 
 // ==== класс для вывода данных на экран =============
 class Display
