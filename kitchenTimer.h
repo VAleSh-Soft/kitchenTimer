@@ -57,8 +57,6 @@ void setBrightness();
 void showTime(DateTime dt);
 // вывод на экран данных в режиме настройки времени и в таймерных режимах
 void showTimeData(byte hour, byte minute);
-// отрисовка данных на экране
-void setDisplayData(int8_t num_left, int8_t num_right, bool show_colon);
 
 // ==== часы =========================================
 // сохранение времени после настройки

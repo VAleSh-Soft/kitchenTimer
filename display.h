@@ -69,6 +69,25 @@ public:
     }
   }
 
+  void showTimeData(int8_t hour, int8_t minute, bool show_colon)
+  {
+    clear();
+    if (hour >= 0)
+    {
+      data[0] = encodeDigit(hour / 10);
+      data[1] = encodeDigit(hour % 10);
+    }
+    if (minute >= 0)
+    {
+      data[2] = encodeDigit(minute / 10);
+      data[3] = encodeDigit(minute % 10);
+    }
+    if (show_colon)
+    {
+      data[1] |= 0x80; // для показа двоеточия установить старший бит во второй цифре
+    }
+  }
+
   void setBrightness(byte brightness, bool on = true)
   {
     tm.setBrightness(brightness, on);

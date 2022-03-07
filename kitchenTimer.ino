@@ -314,7 +314,6 @@ void showTimeSetting()
     btnSet.setBtnFlag(BTN_FLAG_NONE);
     if (displayMode == DISPLAY_MODE_SHOW_TIME)
     {
-      showTime(RTC.now());
       tasks.stopTask(set_time_mode);
       tasks.stopTask(return_to_default_mode);
       return;
@@ -630,30 +629,9 @@ void setBrightness()
 #endif
 
 // ===================================================
-void setDisplayData(int8_t num_left, int8_t num_right, bool show_colon)
-{
-  disp.clear();
-  if (num_left >= 0)
-  {
-    disp.setDispData(0, disp.encodeDigit(num_left / 10));
-    disp.setDispData(1, disp.encodeDigit(num_left % 10));
-  }
-  if (num_right >= 0)
-  {
-    disp.setDispData(2, disp.encodeDigit(num_right / 10));
-    disp.setDispData(3, disp.encodeDigit(num_right % 10));
-  }
-  if (show_colon)
-  {
-    byte x = disp.getDispData(1);
-    x |= (0x80);
-    disp.setDispData(1, x); // для показа двоеточия установить старший бит во второй цифре
-  }
-}
-
 void showTime(DateTime dt)
 {
-  setDisplayData(dt.hour(), dt.minute(), blink_flag);
+  disp.showTimeData(dt.hour(), dt.minute(), blink_flag);
 }
 
 void showTimeData(byte hour, byte minute)
@@ -679,7 +657,7 @@ void showTimeData(byte hour, byte minute)
     }
   }
   // двоеточие отображается только в таймерных режимах
-  setDisplayData(hour, minute, displayMode >= DISPLAY_MODE_SHOW_TIMER_1);
+  disp.showTimeData(hour, minute, displayMode >= DISPLAY_MODE_SHOW_TIMER_1);
 }
 
 // ===================================================
