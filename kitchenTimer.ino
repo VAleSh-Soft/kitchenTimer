@@ -185,9 +185,7 @@ void checkUpDownButton()
   case DISPLAY_MODE_SHOW_TEMP:
     if (btnUp.getButtonState() == BTN_ONECLICK)
     {
-      displayMode = DISPLAY_MODE_SHOW_TIME;
-      tasks.stopTask(return_to_default_mode);
-      tasks.stopTask(show_temp_mode);
+      returnToDefMode();
     }
     break;
   }
