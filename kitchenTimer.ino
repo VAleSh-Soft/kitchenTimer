@@ -522,7 +522,7 @@ void showTimerMode()
     tmr->stop(true);
     btnUp.resetButtonState();
     btnDown.resetButtonState();
-    if (tmr->getTimerType == IS_ALARM)
+    if (tmr->getTimerType() == IS_ALARM)
     {
       tmr->setTimerCount(getCurMinuteCount());
     }
