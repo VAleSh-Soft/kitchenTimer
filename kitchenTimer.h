@@ -11,20 +11,22 @@
 #define DISPLAY_MODE_SHOW_TIMER_1 10 // режим первого таймера
 #define DISPLAY_MODE_SHOW_TIMER_2 11 // режим второго таймера
 
-#define BTN_SET_PIN 5
-#define BTN_DOWN_PIN 4
-#define BTN_UP_PIN 3
-#define BTN_TIMER_PIN 2
-#define BUZZER_PIN 6
-#define LED_CLOCK_PIN 7
-#define LED_TIMER1_PIN 8
-#define LED_TIMER2_PIN 9
-#define LED_TIMER1_GREEN_PIN A0
-#define LED_TIMER1_RED_PIN A1
-#define LED_TIMER2_GREEN_PIN A2
-#define LED_TIMER2_RED_PIN A3
+#define BTN_SET_PIN 5           // пин для подключения кнопки Set
+#define BTN_DOWN_PIN 4          // пин для подключения кнопки Down
+#define BTN_UP_PIN 3            // пин для подключения кнопки Up
+#define BTN_TIMER_PIN 2         // пин для подключения кнопки Timer
+#define DISPLAY_CLK_PIN 11      // пин для подключения дисплея - CLK
+#define DISPLAY_DAT_PIN 10      // пин для подключения дисплея - DAT
+#define BUZZER_PIN 6            // пин для подключения пищалки
+#define LED_CLOCK_PIN 7         // пин для подключения светодиода-индикатора - часы
+#define LED_TIMER1_PIN 8        // пин для подключения светодиода-индикатора - таймер 1
+#define LED_TIMER2_PIN 9        // пин для подключения светодиода-индикатора - таймер
+#define LED_TIMER1_GREEN_PIN A0 // пин для подключения зеленого светодиода таймера 1
+#define LED_TIMER1_RED_PIN A1   // пин для подключения красного светодиода таймера 1
+#define LED_TIMER2_GREEN_PIN A2 // пин для подключения зеленого светодиода таймера 2
+#define LED_TIMER2_RED_PIN A3   // пин для подключения красного светодиода таймера 2
 #ifdef USE_LIGHT_SENSOR
-#define LIGHT_SENSOR_PIN A6
+#define LIGHT_SENSOR_PIN A6 // пин для подключения датчика света
 #endif
 
 #define TIMER_1_TYPE_INDEX 98 // индекс в EEPROM для сохранения типа первого таймера
