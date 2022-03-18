@@ -14,7 +14,7 @@
 #define AUTO_EXIT_TIMEOUT 6      // время автоматического возврата в режим показа текущего времени из любых других режимов при отсутствии активности пользователя, секунд
 // ===================================================
 
-Display disp;
+DisplayTM1637 disp(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
 DS3231 clock; // SDA - A4, SCL - A5
 RTClib RTC;
 DataList data_list(DATA_LIST_INDEX, 10, MAX_DATA); // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t, 10 записей, максимальное значение - 1439
@@ -631,7 +631,7 @@ void setBrightness()
 // ===================================================
 void showTime(DateTime dt)
 {
-  disp.showTimeData(dt.hour(), dt.minute(), blink_flag);
+  disp.showTime(dt.hour(), dt.minute(), blink_flag);
 }
 
 void showTimeData(byte hour, byte minute)
@@ -657,7 +657,7 @@ void showTimeData(byte hour, byte minute)
     }
   }
   // двоеточие отображается только в таймерных режимах
-  disp.showTimeData(hour, minute, displayMode >= DISPLAY_MODE_SHOW_TIMER_1);
+  disp.showTime(hour, minute, displayMode >= DISPLAY_MODE_SHOW_TIMER_1);
 }
 
 // ===================================================
