@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include <DS3231.h> // https://github.com/NorthernWidget/DS3231
 
-// #define USE_LIGHT_SENSOR // использовать или нет датчик света на пине А6 для регулировки яркости дисплея
+// #define USE_LIGHT_SENSOR // использовать или нет датчик света на пине А6 для регулировки яркости экрана
 
 #define DISPLAY_MODE_SHOW_TIME 0     // основной режим - вывод времени на экран
 #define DISPLAY_MODE_SET_HOUR 1      // режим настройки часов
@@ -15,8 +15,8 @@
 #define BTN_DOWN_PIN 4          // пин для подключения кнопки Down
 #define BTN_UP_PIN 3            // пин для подключения кнопки Up
 #define BTN_TIMER_PIN 2         // пин для подключения кнопки Timer
-#define DISPLAY_CLK_PIN 11      // пин для подключения дисплея - CLK
-#define DISPLAY_DAT_PIN 10      // пин для подключения дисплея - DAT
+#define DISPLAY_CLK_PIN 11      // пин для подключения экрана - CLK
+#define DISPLAY_DAT_PIN 10      // пин для подключения экрана - DAT
 #define BUZZER_PIN 6            // пин для подключения пищалки
 #define LED_CLOCK_PIN 7         // пин для подключения светодиода-индикатора - часы
 #define LED_TIMER1_PIN 8        // пин для подключения светодиода-индикатора - таймер 1
