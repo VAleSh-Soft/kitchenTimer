@@ -61,7 +61,7 @@ public:
 
   void tick(DateTime _time)
   {
-    if (timer_flag = TIMER_FLAG_RUN)
+    if (timer_flag == TIMER_FLAG_RUN)
     {
       switch (timer_type)
       {
@@ -85,7 +85,7 @@ public:
         }
         break;
       case IS_ALARM:
-        if (timer_count == _time.hour() * 60 + _time.minute())
+        if (timer_count == _time.hour() * 60u + _time.minute())
         {
           stop();
         }

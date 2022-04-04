@@ -55,10 +55,10 @@ private:
 public:
   ktButton(byte button_pin) : shButton(button_pin)
   {
-    shButton::setTimeout(800);
+    shButton::setTimeoutOfLongClick(800);
     shButton::setLongClickMode(LCM_ONLYONCE);
     shButton::setVirtualClickOn(true);
-    shButton::setDebounce(50);
+    shButton::setTimeoutOfDebounce(50);
   }
 
   byte getBtnFlag()
@@ -740,9 +740,9 @@ void setup()
 
   // ==== кнопки Up/Down ===============================
   btnUp.setLongClickMode(LCM_CLICKSERIES);
-  btnUp.setLongClickTimeout(50);
+  btnUp.setIntervalOfSerial(50);
   btnDown.setLongClickMode(LCM_CLICKSERIES);
-  btnDown.setLongClickTimeout(50);
+  btnDown.setIntervalOfSerial(50);
 
   // ==== пины =========================================
   pinMode(BUZZER_PIN, OUTPUT);
