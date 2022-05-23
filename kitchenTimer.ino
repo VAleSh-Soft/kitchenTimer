@@ -18,13 +18,13 @@ DisplayTM1637 disp(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
 DS3231 clock; // SDA - A4, SCL - A5
 RTClib RTC;
 DataList data_list(DATA_LIST_INDEX, 10, MAX_DATA); // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t, 10 записей, максимальное значение - 1439
-Timer timer_1(IS_TIMER, LED_TIMER1_GREEN_PIN, LED_TIMER1_RED_PIN);
-Timer timer_2(IS_TIMER, LED_TIMER2_GREEN_PIN, LED_TIMER2_RED_PIN);
+Timer timer_1(TIMER_1_EEPROM_INDEX, LED_TIMER1_GREEN_PIN, LED_TIMER1_RED_PIN);
+Timer timer_2(TIMER_2_EEPROM_INDEX, LED_TIMER2_GREEN_PIN, LED_TIMER2_RED_PIN);
 
 #ifdef USE_LIGHT_SENSOR
-shTaskManager tasks(9); // создаем список задач
+shTaskManager tasks(11); // создаем список задач
 #else
-shTaskManager tasks(8); // создаем список задач
+shTaskManager tasks(10); // создаем список задач
 #endif
 
 shHandle blink_timer;            // блинк
@@ -33,24 +33,29 @@ shHandle set_time_mode;          // режим настройки времени
 shHandle show_temp_mode;         // режим показа температуры
 shHandle leds_guard;             // управление индикаторными светодиодами
 shHandle display_guard;          // вывод данных на экран
-shHandle show_timer_mode;        // режим показа таймера ))
+shHandle show_timer_mode;        // режим показа таймера
 shHandle run_buzzer;             // пищалка
+shHandle check_timers;           // проверка таймеров
+shHandle backup_end_point;       // сохранение точки останова таймеров, если они изменены в процессе работы
 #ifdef USE_LIGHT_SENSOR
 shHandle light_sensor_guard; // отслеживание показаний датчика света
 #endif
 
-byte displayMode = DISPLAY_MODE_SHOW_TIME;
+DisplayMode displayMode = DISPLAY_MODE_SHOW_TIME;
 bool blink_flag = false; // флаг блинка, используется всем, что должно мигать
 
 // ==== класс кнопок с предварительной настройкой ====
-#define BTN_FLAG_NONE 0 // флаг кнопки - ничего не делать
-#define BTN_FLAG_NEXT 1 // флаг кнопки - изменить значение
-#define BTN_FLAG_EXIT 2 // флаг кнопки - возврат в режим показа текущего времени
+enum ButtonFlag : uint8_t
+{
+  BTN_FLAG_NONE, // флаг кнопки - ничего не делать
+  BTN_FLAG_NEXT, // флаг кнопки - изменить значение
+  BTN_FLAG_EXIT  // флаг кнопки - возврат в режим показа текущего времени
+};
 
 class ktButton : public shButton
 {
 private:
-  byte _flag = BTN_FLAG_NONE;
+  ButtonFlag _flag = BTN_FLAG_NONE;
 
 public:
   ktButton(byte button_pin) : shButton(button_pin)
@@ -61,14 +66,20 @@ public:
     shButton::setTimeoutOfDebounce(50);
   }
 
-  byte getBtnFlag()
+  ButtonFlag getBtnFlag()
   {
     return (_flag);
   }
 
-  void setBtnFlag(byte flag)
+  void setBtnFlag(ButtonFlag flag)
   {
     _flag = flag;
+  }
+
+  void resetButtonState()
+  {
+    shButton::resetButtonState();
+    _flag = BTN_FLAG_NONE;
   }
 
   byte getButtonState()
@@ -84,6 +95,13 @@ public:
       {
         tasks.restartTask(return_to_default_mode);
       }
+      // сброс сработавших таймеров
+      if ((_state == BTN_DOWN) && (clearStopFlag(timer_1) || clearStopFlag(timer_2)))
+      {
+        // если был сброшен таймер, то действие по кнопке отменяется
+        resetButtonState();
+      }
+
       break;
     }
     return (_state);
@@ -95,14 +113,20 @@ ktButton btnSet(BTN_SET_PIN);     // кнопка Set - смена режима 
 ktButton btnUp(BTN_UP_PIN);       // кнопка Up - изменение часов/минут в режиме настройки
 ktButton btnDown(BTN_DOWN_PIN);   // кнопка Down - изменение часов/минут в режиме настройки
 ktButton btnTimer(BTN_TIMER_PIN); // кнопка Timer - работа с таймерами
+#ifdef USE_MODE_BUTTON
+ktButton btnMode(BTN_MODE_PIN); // кнопка Mode - переключение режима отображения индикатора
+#endif
 
 // ===================================================
-void clearStopFlag(Timer &tmr)
+bool clearStopFlag(Timer &tmr)
 {
+  bool result = false;
   if (tmr.getTimerFlag() == TIMER_FLAG_STOP)
   {
     tmr.setTimerFlag(TIMER_FLAG_NONE);
+    result = true;
   }
+  return (result);
 }
 
 void checkButton()
@@ -110,13 +134,9 @@ void checkButton()
   checkSetButton();
   checkUpDownButton();
   checkTimerButton();
-  // отключение сигнала, если есть сработка какого-то таймера
-  if ((btnSet.getLastState() == BTN_DOWN) || (btnUp.getLastState() == BTN_DOWN) ||
-      (btnDown.getLastState() == BTN_DOWN) || (btnTimer.getLastState() == BTN_DOWN))
-  {
-    clearStopFlag(timer_1);
-    clearStopFlag(timer_2);
-  }
+#ifdef USE_MODE_BUTTON
+  checkModeButton();
+#endif
 }
 
 void checkSetButton()
@@ -131,6 +151,8 @@ void checkSetButton()
     case DISPLAY_MODE_SHOW_TIMER_1:
     case DISPLAY_MODE_SHOW_TIMER_2:
       btnSet.setBtnFlag(BTN_FLAG_NEXT);
+      break;
+    default:
       break;
     }
     break;
@@ -147,6 +169,8 @@ void checkSetButton()
     case DISPLAY_MODE_SHOW_TIMER_1:
     case DISPLAY_MODE_SHOW_TIMER_2:
       returnToDefMode();
+      break;
+    default:
       break;
     }
     break;
@@ -191,6 +215,25 @@ void checkUpDownButton()
   }
 }
 
+void setDisplayMode()
+{
+  switch (displayMode)
+  {
+  case DISPLAY_MODE_SHOW_TIME:
+    displayMode = DISPLAY_MODE_SHOW_TIMER_1;
+    break;
+  case DISPLAY_MODE_SHOW_TIMER_1:
+    displayMode = DISPLAY_MODE_SHOW_TIMER_2;
+    tasks.stopTask(show_timer_mode); // это чтобы переинициализировались значения таймера
+    break;
+  case DISPLAY_MODE_SHOW_TIMER_2:
+    returnToDefMode();
+    break;
+  default:
+    break;
+  }
+}
+
 void checkTimerButton()
 {
   switch (btnTimer.getButtonState())
@@ -202,6 +245,8 @@ void checkTimerButton()
     case DISPLAY_MODE_SHOW_TIMER_2:
       btnTimer.setBtnFlag(BTN_FLAG_NEXT);
       break;
+    default:
+      break;
     }
     break;
   case BTN_DBLCLICK:
@@ -211,25 +256,25 @@ void checkTimerButton()
     case DISPLAY_MODE_SHOW_TIMER_2:
       btnTimer.setBtnFlag(BTN_FLAG_EXIT);
       break;
+    default:
+      break;
     }
     break;
   case BTN_LONGCLICK:
-    switch (displayMode)
-    {
-    case DISPLAY_MODE_SHOW_TIME:
-      displayMode = DISPLAY_MODE_SHOW_TIMER_1;
-      break;
-    case DISPLAY_MODE_SHOW_TIMER_1:
-      displayMode = DISPLAY_MODE_SHOW_TIMER_2;
-      tasks.stopTask(show_timer_mode); // это чтобы переинициализировались значения таймера
-      break;
-    case DISPLAY_MODE_SHOW_TIMER_2:
-      returnToDefMode();
-      break;
-    }
+    setDisplayMode();
     break;
   }
 }
+
+#ifdef USE_MODE_BUTTON
+void checkModeButton()
+{
+  if (btnMode.getButtonState() == BTN_ONECLICK)
+  {
+    setDisplayMode();
+  }
+}
+#endif
 
 // ===================================================
 void blink()
@@ -266,8 +311,9 @@ void returnToDefMode()
   case DISPLAY_MODE_SHOW_TIMER_1:
   case DISPLAY_MODE_SHOW_TIMER_2:
     displayMode = DISPLAY_MODE_SHOW_TIME;
-    showTime(RTC.now());
     tasks.stopTask(show_timer_mode);
+    break;
+  default:
     break;
   }
   tasks.stopTask(return_to_default_mode);
@@ -305,7 +351,8 @@ void showTimeSetting()
     }
     if (btnSet.getBtnFlag() == BTN_FLAG_NEXT)
     {
-      checkData(displayMode, DISPLAY_MODE_SET_MINUTE, true);
+      displayMode = (displayMode < DISPLAY_MODE_SET_MINUTE) ? (DisplayMode)((byte)displayMode + 1)
+                                                            : DISPLAY_MODE_SHOW_TIME;
     }
     else
     {
@@ -331,6 +378,8 @@ void showTimeSetting()
     case DISPLAY_MODE_SET_MINUTE:
       checkData(curMinute, 59, dir);
       break;
+    default:
+      break;
     }
     time_checked = true;
     btnUp.setBtnFlag(BTN_FLAG_NONE);
@@ -349,12 +398,12 @@ void showTemp()
     tasks.startTask(show_temp_mode);
   }
 
-  disp.showTemp(int(clock.getTemperature()));
+  disp.showTemp((int)clock.getTemperature());
 }
 
 void setStateLed(Timer &tmr)
 {
-  byte mask = 0;
+  LedsColor mask = LED_COLOR_NONE;
 
   switch (tmr.getTimerFlag())
   {
@@ -362,11 +411,13 @@ void setStateLed(Timer &tmr)
   case TIMER_FLAG_STOP:
     if (blink_flag)
     {
-      mask = (tmr.getTimerFlag() == TIMER_FLAG_RUN) ? 1 : 2; // 0b0001 : 0b0010
+      mask = (tmr.getTimerFlag() == TIMER_FLAG_RUN) ? LED_COLOR_GREEN : LED_COLOR_RED;
     }
     break;
   case TIMER_FLAG_PAUSED:
-    mask = 1;
+    mask = LED_COLOR_GREEN;
+    break;
+  default:
     break;
   }
 
@@ -387,6 +438,25 @@ void setDisp()
   disp.show();
 }
 
+void checkTimers()
+{
+  DateTime dt = RTC.now();
+  timer_1.tick(dt);
+  timer_2.tick(dt);
+
+  if ((timer_1.checkTimerState()) || (timer_2.checkTimerState()))
+  {
+    restartBuzzer();
+  }
+}
+
+void backupEndPoints()
+{
+  timer_1.saveState();
+  timer_2.saveState();
+  tasks.stopTask(backup_end_point);
+}
+
 void showTimerChar(byte _type)
 {
   // IS_TIMER - dur, IS_ALARM - End
@@ -399,18 +469,9 @@ void showTimerChar(byte _type)
 void showTimerMode()
 {
   static byte n = 0;
-  Timer *tmr;
   // определить действующий таймер
-  switch (displayMode)
-  {
-  case DISPLAY_MODE_SHOW_TIMER_1:
-    tmr = &timer_1;
-    break;
-  case DISPLAY_MODE_SHOW_TIMER_2:
-    tmr = &timer_2;
-    break;
-  }
-
+  Timer *tmr = (displayMode == DISPLAY_MODE_SHOW_TIMER_1) ? &timer_1 : &timer_2;
+  
   if (!tasks.getTaskState(show_timer_mode))
   {
     n = 0;
@@ -418,24 +479,17 @@ void showTimerMode()
     tasks.setTaskInterval(return_to_default_mode, AUTO_EXIT_TIMEOUT * 2000ul);
     restartBlink();
     // инициализировать начальное значение таймера, если оно нулевое, и таймер в состоянии покоя
-    if (tmr->getTimerFlag() == TIMER_FLAG_NONE)
+    if (tmr->getTimerFlag() == TIMER_FLAG_NONE && tmr->getTimerCount() == 0)
     {
-      if (tmr->getTimerCount() == 0)
+      tmr->setTimerCount(data_list.getFirst());
+      if (tmr->getTimerType() == IS_TIMER)
       {
-        switch (tmr->getTimerType())
-        {
-        case IS_TIMER:
-          tmr->setTimerCount(data_list.getFirst());
-          break;
-        case IS_ALARM:
-          tmr->setTimerCount(data_list.getFirst() + getCurMinuteCount());
-          break;
-        }
+        tmr->setTimerCount(tmr->getTimerCount() * 60);
       }
     }
   }
 
-  if (n < 20)
+  if (n < 10)
   {
     showTimerChar(tmr->getTimerType());
     n++;
@@ -443,91 +497,81 @@ void showTimerMode()
   }
 
   // опрос кнопок =====================
-  if (btnSet.getBtnFlag() == BTN_FLAG_NEXT)
+  if (tmr->getTimerFlag() == TIMER_FLAG_NONE && btnSet.getBtnFlag() == BTN_FLAG_NEXT)
   {
-    switch (tmr->getTimerType())
+    tmr->setTimerCount(data_list.getNext());
+    if (tmr->getTimerType() == IS_TIMER)
     {
-    case IS_TIMER:
-      tmr->setTimerCount(data_list.getNext());
-      break;
-    case IS_ALARM:
-      tmr->setTimerCount(data_list.getNext() + getCurMinuteCount());
-      break;
+      tmr->setTimerCount(tmr->getTimerCount() * 60);
     }
-    btnSet.setBtnFlag(BTN_FLAG_NONE);
   }
+  btnSet.setBtnFlag(BTN_FLAG_NONE);
 
-  if ((btnUp.getBtnFlag() == BTN_FLAG_NEXT) || (btnDown.getBtnFlag() == BTN_FLAG_NEXT))
-  {
-    uint16_t t_data = tmr->getTimerCount();
-    checkTimerData(t_data, MAX_DATA, btnUp.getBtnFlag() == BTN_FLAG_NEXT);
-    switch (tmr->getTimerType())
-    {
-    case IS_TIMER:
-      if (t_data <= MAX_DATA)
-      {
-        tmr->setTimerCount(t_data);
-      }
-      if (t_data == 0)
-      {
-        tmr->setTimerFlag(TIMER_FLAG_NONE);
-      }
-      break;
-    case IS_ALARM:
-      // исключаем кольцевой перебор значений; при увеличении значений останавливаемся за минуту до текущего времени, при уменьшении останавливаемся на текущем времени
-      uint16_t _data = (btnUp.getBtnFlag() == BTN_FLAG_NEXT) ? t_data : tmr->getTimerCount();
-      if (_data != getCurMinuteCount())
-      {
-        tmr->setTimerCount(t_data);
-      }
-      if (t_data == getCurMinuteCount())
-      {
-        tmr->setTimerFlag(TIMER_FLAG_NONE);
-      }
-      break;
-    }
-    btnUp.setBtnFlag(BTN_FLAG_NONE);
-    btnDown.setBtnFlag(BTN_FLAG_NONE);
-  }
   // сброс таймера по нажатию двух кнопок - Up+Down
   if (btnUp.isButtonClosed() && btnDown.isButtonClosed())
   {
     tmr->stop(true);
     btnUp.resetButtonState();
     btnDown.resetButtonState();
-    if (tmr->getTimerType() == IS_ALARM)
+  }
+
+  if ((btnUp.getBtnFlag() == BTN_FLAG_NEXT) || (btnDown.getBtnFlag() == BTN_FLAG_NEXT))
+  {
+    uint32_t t_data = tmr->getTimerCount();
+    bool toUp = btnUp.getBtnFlag() == BTN_FLAG_NEXT;
+    int8_t d = (toUp) ? 1 : -1; // единица изменения данных
+    if (tmr->getTimerType() == IS_TIMER)
     {
-      tmr->setTimerCount(getCurMinuteCount());
+      d *= 60; // для будильника в минутах, для таймера - в секундах
     }
+    t_data += d;
+    uint32_t m = (tmr->getTimerType() == IS_TIMER) ? MAX_DATA * 60ul : MAX_DATA; // максимальное значение; для будильника в минутах, для таймера - в секундах
+    if (t_data > m)
+    {
+      t_data = (!toUp) ? 0 : m;
+    }
+
+    tmr->setTimerCount(t_data);
+    if (t_data == 0)
+    {
+      tmr->setTimerFlag(TIMER_FLAG_NONE);
+    }
+    else if (tmr->getTimerFlag() == TIMER_FLAG_RUN)
+    {
+      tasks.restartTask(backup_end_point);
+      t_data += (tmr->getTimerType() == IS_TIMER) ? secondstime(RTC.now()) : minutstime(RTC.now());
+      tmr->setEndPoint(t_data);
+    }
+    btnUp.setBtnFlag(BTN_FLAG_NONE);
+    btnDown.setBtnFlag(BTN_FLAG_NONE);
   }
 
   switch (btnTimer.getBtnFlag())
   {
   case BTN_FLAG_NEXT:
-    if ((tmr->getTimerType() == IS_TIMER && tmr->getTimerCount() > 0) ||
-        (tmr->getTimerType() == IS_ALARM && tmr->getTimerCount() != getCurMinuteCount()))
+    if (tmr->getTimerCount() > 0)
     {
       if (tmr->getTimerFlag() < TIMER_FLAG_STOP)
       {
         if (tmr->getTimerType() == IS_TIMER &&
             tmr->getTimerFlag() == TIMER_FLAG_NONE &&
             tmr->getTimerCount() > 0)
-        { // сохранять данные нужно только для таймера, для будильника не нужно
-          data_list.saveNewData(tmr->getTimerCount());
+        { // сохранять данные нужно только для таймера, для будильника не нужно; и только в минутах
+          data_list.saveNewData(tmr->getTimerCount() / 60);
         }
-        tmr->startPause();
+        tmr->startPause(RTC.now());
       }
     }
     break;
   case BTN_FLAG_EXIT:
     if (tmr->getTimerFlag() == TIMER_FLAG_NONE)
     { // смена типа таймера по двойному клику таймер-кнопки
-      tmr->setTimerType(!tmr->getTimerType());
+      tmr->setTimerType((TimerType)(!(byte)tmr->getTimerType()));
       tmr->setTimerCount(0);
-      uint16_t x = (displayMode == DISPLAY_MODE_SHOW_TIMER_1) ? TIMER_1_TYPE_INDEX : TIMER_2_TYPE_INDEX;
-      eeprom_update_byte(x, tmr->getTimerType());
       tasks.stopTask(show_timer_mode);
     }
+    break;
+  default:
     break;
   }
   btnTimer.setBtnFlag(BTN_FLAG_NONE);
@@ -536,18 +580,31 @@ void showTimerMode()
   switch (tmr->getTimerType())
   {
   case IS_TIMER:
-    if (tmr->getTimerCount() > 1 || tmr->getTimerFlag() == TIMER_FLAG_NONE ||
+    if (tmr->getTimerCount() >= 60 || tmr->getTimerFlag() == TIMER_FLAG_NONE ||
         btnUp.isButtonClosed() || btnDown.isButtonClosed())
     {
-      showTimeData(tmr->getTimerCount() / 60, tmr->getTimerCount() % 60);
+      byte h, m, s;
+      timeinseconds(tmr->getTimerCount(), h, m, s);
+      if (s > 0)
+      {
+        m++;
+      }
+      showTimeData(h, m);
     }
     else
     {
-      (tmr->getTimerFlag() == TIMER_FLAG_STOP) ? showTimeData(0, 0) : showTimeData(0, tmr->getTimerSecond());
+      (tmr->getTimerFlag() == TIMER_FLAG_STOP) ? showTimeData(0, 0)
+                                               : showTimeData(0, tmr->getTimerCount());
     }
     break;
   case IS_ALARM:
-    showTimeData(tmr->getTimerCount() / 60, tmr->getTimerCount() % 60);
+    byte h, m, s;
+    uint32_t t;
+    t = (tmr->getTimerFlag() == TIMER_FLAG_RUN) ? tmr->getEndPoint()
+                                                : minutstime(RTC.now()) + tmr->getTimerCount();
+
+    timeinseconds(t * 60ul, h, m, s);
+    showTimeData(h, m);
     break;
   }
 }
@@ -594,19 +651,20 @@ void restartBuzzer()
 #ifdef USE_LIGHT_SENSOR
 void setBrightness()
 {
-  static word b;
+  static uint16_t b;
   b = (b * 2 + analogRead(LIGHT_SENSOR_PIN)) / 3;
-  byte c = (b < LIGHT_THRESHOLD) ? MIN_DISPLAY_BRIGHTNESS : MAX_DISPLAY_BRIGHTNESS;
-  disp.setBrightness(c);
+  if (b < LIGHT_THRESHOLD)
+  {
+    disp.setBrightness(MIN_DISPLAY_BRIGHTNESS);
+  }
+  else if (b > LIGHT_THRESHOLD + 50)
+  {
+    disp.setBrightness(MAX_DISPLAY_BRIGHTNESS);
+  }
 }
 #endif
 
 // ===================================================
-void showTime(DateTime dt)
-{
-  disp.showTime(dt.hour(), dt.minute(), blink_flag);
-}
-
 void showTimeData(byte hour, byte minute)
 {
   // если наступило время блинка и кнопки Up/Down не нажаты, то стереть соответствующие разряды; при нажатых кнопках Up/Down во время изменения данных ничего не мигает
@@ -619,6 +677,8 @@ void showTimeData(byte hour, byte minute)
       break;
     case DISPLAY_MODE_SET_MINUTE:
       minute = -1;
+      break;
+    default:
       break;
     }
     // в таймерных режимах мигает сразу все, но только в состоянии покоя и при ненажатых кнопках Up/Down
@@ -642,38 +702,9 @@ void saveTime(byte hour, byte minute)
 }
 
 // ===================================================
-void _checkTimer(Timer &tmr)
-{
-  if (tmr.getTimerFlag() == TIMER_FLAG_RUN)
-  {
-    tmr.tick(RTC.now());
-  }
-}
-
-void checkTimers()
-{
-  _checkTimer(timer_1);
-  _checkTimer(timer_2);
-
-  if ((timer_1.getCheckFlag()) || (timer_2.getCheckFlag()))
-  {
-    restartBuzzer();
-  }
-}
-
-// ===================================================
 void checkData(byte &dt, byte max, bool toUp)
 {
   (toUp) ? dt++ : dt--;
-  if (dt > max)
-  {
-    dt = (toUp) ? 0 : max;
-  }
-}
-
-void checkTimerData(uint16_t &dt, uint16_t max, bool toUp)
-{
-  (toUp) ? dt++ : ((dt > 0) ? dt-- : 0);
   if (dt > max)
   {
     dt = (toUp) ? 0 : max;
@@ -684,9 +715,6 @@ void setDisplay()
 {
   switch (displayMode)
   {
-  case DISPLAY_MODE_SHOW_TIME:
-    showTime(RTC.now());
-    break;
   case DISPLAY_MODE_SET_HOUR:
   case DISPLAY_MODE_SET_MINUTE:
     if (!tasks.getTaskState(set_time_mode))
@@ -707,36 +735,26 @@ void setDisplay()
       showTimerMode();
     }
     break;
+  default:
+    DateTime dt;
+    dt = RTC.now();
+    disp.showTime(dt.hour(), dt.minute(), blink_flag);
+    break;
   }
-}
-
-uint16_t getCurMinuteCount()
-{
-  DateTime dt = RTC.now();
-  return (dt.hour() * 60 + dt.minute());
 }
 
 // ===================================================
 void setup()
 {
-  //  Serial.begin(9600);
-
-  // ==== таймеры ======================================
-  if (eeprom_read_byte(TIMER_1_TYPE_INDEX) > IS_ALARM)
-  {
-    eeprom_update_byte(TIMER_1_TYPE_INDEX, IS_TIMER);
-  }
-  if (eeprom_read_byte(TIMER_2_TYPE_INDEX) > IS_ALARM)
-  {
-    eeprom_update_byte(TIMER_2_TYPE_INDEX, IS_TIMER);
-  }
-
-  timer_1.setTimerType(eeprom_read_byte(TIMER_1_TYPE_INDEX));
-  timer_2.setTimerType(eeprom_read_byte(TIMER_2_TYPE_INDEX));
+  // Serial.begin(9600);
 
   // ==== часы =========================================
   Wire.begin();
   clock.setClockMode(false); // 24-часовой режим
+
+  // ==== таймеры ======================================
+  timer_1.restoreState(RTC.now());
+  timer_2.restoreState(RTC.now());
 
   // ==== кнопки Up/Down ===============================
   btnUp.setLongClickMode(LCM_CLICKSERIES);
@@ -749,20 +767,18 @@ void setup()
   pinMode(LED_CLOCK_PIN, OUTPUT);
   pinMode(LED_TIMER1_PIN, OUTPUT);
   pinMode(LED_TIMER2_PIN, OUTPUT);
-  pinMode(LED_TIMER1_RED_PIN, OUTPUT);
-  pinMode(LED_TIMER1_GREEN_PIN, OUTPUT);
-  pinMode(LED_TIMER2_RED_PIN, OUTPUT);
-  pinMode(LED_TIMER2_GREEN_PIN, OUTPUT);
 
   // ==== задачи =======================================
   blink_timer = tasks.addTask(500, blink);
-  return_to_default_mode = tasks.addTask(AUTO_EXIT_TIMEOUT * 1000, returnToDefMode, false);
+  return_to_default_mode = tasks.addTask(AUTO_EXIT_TIMEOUT * 1000ul, returnToDefMode, false);
   set_time_mode = tasks.addTask(100, showTimeSetting, false);
   show_temp_mode = tasks.addTask(500, showTemp, false);
   leds_guard = tasks.addTask(100, setLeds);
   display_guard = tasks.addTask(50, setDisp);
   show_timer_mode = tasks.addTask(50, showTimerMode, false);
   run_buzzer = tasks.addTask(100, runBuzzer, false);
+  check_timers = tasks.addTask(100, checkTimers);
+  backup_end_point = tasks.addTask(3000, backupEndPoints, false);
 #ifdef USE_LIGHT_SENSOR
   light_sensor_guard = tasks.addTask(100, setBrightness);
 #else
@@ -775,5 +791,4 @@ void loop()
   checkButton();
   tasks.tick();
   setDisplay();
-  checkTimers();
 }
