@@ -588,6 +588,11 @@ void showTimerMode()
       if (s > 0)
       {
         m++;
+        if (m == 60)
+        {
+          m = 0;
+          h++;
+        }
       }
       showTimeData(h, m);
     }
