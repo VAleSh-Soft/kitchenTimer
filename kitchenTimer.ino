@@ -621,7 +621,7 @@ void runBuzzer()
   // "мелодия" пищалки: первая строка - частота, вторая строка - длительность
   static const PROGMEM uint32_t pick[2][8] = {
       {2000, 0, 2000, 0, 2000, 0, 2000, 0},
-      {50, 100, 50, 100, 50, 100, 50, 500}};
+      {70, 70, 70, 70, 70, 70, 70, 510}};
   if (!tasks.getTaskState(run_buzzer))
   {
     tasks.startTask(run_buzzer);
