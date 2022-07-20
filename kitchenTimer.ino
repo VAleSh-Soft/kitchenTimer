@@ -96,7 +96,7 @@ public:
         tasks.restartTask(return_to_default_mode);
       }
       // сброс сработавших таймеров
-      if ((_state == BTN_DOWN) && (clearStopFlag(timer_1) || clearStopFlag(timer_2)))
+      if ((_state == BTN_DOWN) && (clearStopFlag(timer_1) + clearStopFlag(timer_2)))
       {
         // если был сброшен таймер, то действие по кнопке отменяется
         resetButtonState();
