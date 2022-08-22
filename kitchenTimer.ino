@@ -21,11 +21,7 @@ DataList data_list(DATA_LIST_INDEX, 10, MAX_DATA); // данные хранят�
 Timer timer_1(TIMER_1_EEPROM_INDEX, LED_TIMER1_GREEN_PIN, LED_TIMER1_RED_PIN);
 Timer timer_2(TIMER_2_EEPROM_INDEX, LED_TIMER2_GREEN_PIN, LED_TIMER2_RED_PIN);
 
-#ifdef USE_LIGHT_SENSOR
-shTaskManager tasks(11); // создаем список задач
-#else
-shTaskManager tasks(10); // создаем список задач
-#endif
+shTaskManager tasks; // создаем список задач, количество задач укажем в setup()
 
 shHandle blink_timer;            // блинк
 shHandle return_to_default_mode; // таймер автовозврата в режим показа времени из любого режима настройки
@@ -179,7 +175,7 @@ void checkSetButton()
 
 void checkUDbtn(ktButton &btn)
 {
-  switch (btn.getButtonState())
+  switch (btn.getLastState())
   {
   case BTN_DOWN:
   case BTN_DBLCLICK:
@@ -191,13 +187,17 @@ void checkUDbtn(ktButton &btn)
 
 void checkUpDownButton()
 {
+  btnUp.getButtonState();
+  btnDown.getButtonState();
   switch (displayMode)
   {
   case DISPLAY_MODE_SHOW_TIME:
-    if (btnUp.getButtonState() == BTN_ONECLICK)
+#ifdef USE_TEMP_DATA
+    if (btnUp.getLastState() == BTN_ONECLICK)
     {
       displayMode = DISPLAY_MODE_SHOW_TEMP;
     }
+#endif
     break;
   case DISPLAY_MODE_SET_HOUR:
   case DISPLAY_MODE_SET_MINUTE:
@@ -206,12 +206,14 @@ void checkUpDownButton()
     checkUDbtn(btnUp);
     checkUDbtn(btnDown);
     break;
+#ifdef USE_TEMP_DATA
   case DISPLAY_MODE_SHOW_TEMP:
-    if (btnUp.getButtonState() == BTN_ONECLICK)
+    if (btnUp.getLastState() == BTN_ONECLICK)
     {
       returnToDefMode();
     }
     break;
+#endif
   }
 }
 
@@ -304,10 +306,12 @@ void returnToDefMode()
   case DISPLAY_MODE_SET_MINUTE:
     btnSet.setBtnFlag(BTN_FLAG_EXIT);
     break;
+#ifdef USE_TEMP_DATA
   case DISPLAY_MODE_SHOW_TEMP:
     displayMode = DISPLAY_MODE_SHOW_TIME;
     tasks.stopTask(show_temp_mode);
     break;
+#endif
   case DISPLAY_MODE_SHOW_TIMER_1:
   case DISPLAY_MODE_SHOW_TIMER_2:
     displayMode = DISPLAY_MODE_SHOW_TIME;
@@ -390,6 +394,7 @@ void showTimeSetting()
   showTimeData(curHour, curMinute);
 }
 
+#ifdef USE_TEMP_DATA
 void showTemp()
 {
   if (!tasks.getTaskState(show_temp_mode))
@@ -400,6 +405,7 @@ void showTemp()
 
   disp.showTemp((int)clock.getTemperature());
 }
+#endif
 
 void setStateLed(Timer &tmr)
 {
@@ -471,7 +477,7 @@ void showTimerMode()
   static byte n = 0;
   // определить действующий таймер
   Timer *tmr = (displayMode == DISPLAY_MODE_SHOW_TIMER_1) ? &timer_1 : &timer_2;
-  
+
   if (!tasks.getTaskState(show_timer_mode))
   {
     n = 0;
@@ -727,12 +733,14 @@ void setDisplay()
       showTimeSetting();
     }
     break;
+#ifdef USE_TEMP_DATA
   case DISPLAY_MODE_SHOW_TEMP:
     if (!tasks.getTaskState(show_temp_mode))
     {
       showTemp();
     }
     break;
+#endif
   case DISPLAY_MODE_SHOW_TIMER_1:
   case DISPLAY_MODE_SHOW_TIMER_2:
     if (!tasks.getTaskState(show_timer_mode))
@@ -774,10 +782,22 @@ void setup()
   pinMode(LED_TIMER2_PIN, OUTPUT);
 
   // ==== задачи =======================================
+  byte task_count = 9;
+#ifdef USE_TEMP_DATA
+  task_count++;
+#endif
+#ifdef USE_LIGHT_SENSOR
+  task_count++;
+#endif
+
+  tasks.init(task_count);
+
   blink_timer = tasks.addTask(500, blink);
   return_to_default_mode = tasks.addTask(AUTO_EXIT_TIMEOUT * 1000ul, returnToDefMode, false);
   set_time_mode = tasks.addTask(100, showTimeSetting, false);
+#ifdef USE_TEMP_DATA
   show_temp_mode = tasks.addTask(500, showTemp, false);
+#endif
   leds_guard = tasks.addTask(100, setLeds);
   display_guard = tasks.addTask(50, setDisp);
   show_timer_mode = tasks.addTask(50, showTimerMode, false);
