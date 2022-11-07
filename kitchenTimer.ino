@@ -26,13 +26,15 @@ shTaskManager tasks; // создаем список задач, количест
 shHandle blink_timer;            // блинк
 shHandle return_to_default_mode; // таймер автовозврата в режим показа времени из любого режима настройки
 shHandle set_time_mode;          // режим настройки времени
-shHandle show_temp_mode;         // режим показа температуры
-shHandle leds_guard;             // управление индикаторными светодиодами
-shHandle display_guard;          // вывод данных на экран
-shHandle show_timer_mode;        // режим показа таймера
-shHandle run_buzzer;             // пищалка
-shHandle check_timers;           // проверка таймеров
-shHandle backup_end_point;       // сохранение точки останова таймеров, если они изменены в процессе работы
+#ifdef USE_TEMP_DATA
+shHandle show_temp_mode; // режим показа температуры
+#endif
+shHandle leds_guard;       // управление индикаторными светодиодами
+shHandle display_guard;    // вывод данных на экран
+shHandle show_timer_mode;  // режим показа таймера
+shHandle run_buzzer;       // пищалка
+shHandle check_timers;     // проверка таймеров
+shHandle backup_end_point; // сохранение точки останова таймеров, если они изменены в процессе работы
 #ifdef USE_LIGHT_SENSOR
 shHandle light_sensor_guard; // отслеживание показаний датчика света
 #endif
@@ -59,7 +61,6 @@ public:
     shButton::setTimeoutOfLongClick(800);
     shButton::setLongClickMode(LCM_ONLYONCE);
     shButton::setVirtualClickOn(true);
-    shButton::setTimeoutOfDebounce(50);
   }
 
   ButtonFlag getBtnFlag()
@@ -516,6 +517,10 @@ void showTimerMode()
   // сброс таймера по нажатию двух кнопок - Up+Down
   if (btnUp.isButtonClosed() && btnDown.isButtonClosed())
   {
+    if (tmr->getTimerFlag() != TIMER_FLAG_NONE)
+    {
+      tone(BUZZER_PIN, 2000, 300);
+    }
     tmr->stop(true);
     btnUp.resetButtonState();
     btnDown.resetButtonState();
@@ -538,9 +543,10 @@ void showTimerMode()
     }
 
     tmr->setTimerCount(t_data);
-    if (t_data == 0)
+    if (t_data == 0 && tmr->getTimerFlag() != TIMER_FLAG_NONE)
     {
       tmr->setTimerFlag(TIMER_FLAG_NONE);
+      tone(BUZZER_PIN, 2000, 300);
     }
     else if (tmr->getTimerFlag() == TIMER_FLAG_RUN)
     {
@@ -565,6 +571,8 @@ void showTimerMode()
         { // сохранять данные нужно только для таймера, для будильника не нужно; и только в минутах
           data_list.saveNewData(tmr->getTimerCount() / 60);
         }
+        // одиночный писк при старте/паузе таймера
+        tone(BUZZER_PIN, 2000, 20);
         tmr->startPause(RTC.now());
       }
     }
@@ -574,6 +582,10 @@ void showTimerMode()
     { // смена типа таймера по двойному клику таймер-кнопки
       tmr->setTimerType((TimerType)(!(byte)tmr->getTimerType()));
       tmr->setTimerCount(0);
+      // двойной писк при смене типа таймера
+      tone(BUZZER_PIN, 2000, 20);
+      delay(50);
+      tone(BUZZER_PIN, 2000, 20);
       tasks.stopTask(show_timer_mode);
     }
     break;
@@ -783,10 +795,10 @@ void setup()
 
   // ==== задачи =======================================
   byte task_count = 9;
-#ifdef USE_TEMP_DATA
+#ifdef USE_LIGHT_SENSOR
   task_count++;
 #endif
-#ifdef USE_LIGHT_SENSOR
+#ifdef USE_TEMP_DATA
   task_count++;
 #endif
 
