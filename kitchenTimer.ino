@@ -237,31 +237,28 @@ void setDisplayMode()
   }
 }
 
+void setTimerFlag(ButtonFlag flag)
+{
+  switch (displayMode)
+  {
+  case DISPLAY_MODE_SHOW_TIMER_1:
+  case DISPLAY_MODE_SHOW_TIMER_2:
+    btnTimer.setBtnFlag(flag);
+    break;
+  default:
+    break;
+  }
+}
+
 void checkTimerButton()
 {
   switch (btnTimer.getButtonState())
   {
   case BTN_ONECLICK:
-    switch (displayMode)
-    {
-    case DISPLAY_MODE_SHOW_TIMER_1:
-    case DISPLAY_MODE_SHOW_TIMER_2:
-      btnTimer.setBtnFlag(BTN_FLAG_NEXT);
-      break;
-    default:
-      break;
-    }
+    setTimerFlag(BTN_FLAG_NEXT);
     break;
   case BTN_DBLCLICK:
-    switch (displayMode)
-    {
-    case DISPLAY_MODE_SHOW_TIMER_1:
-    case DISPLAY_MODE_SHOW_TIMER_2:
-      btnTimer.setBtnFlag(BTN_FLAG_EXIT);
-      break;
-    default:
-      break;
-    }
+    setTimerFlag(BTN_FLAG_EXIT);
     break;
   case BTN_LONGCLICK:
     setDisplayMode();
@@ -272,9 +269,17 @@ void checkTimerButton()
 #ifdef USE_MODE_BUTTON
 void checkModeButton()
 {
-  if (btnMode.getButtonState() == BTN_ONECLICK)
+  switch (btnMode.getButtonState())
   {
+  case BTN_ONECLICK:
     setDisplayMode();
+    break;
+  case BTN_DBLCLICK:
+    setTimerFlag(BTN_FLAG_EXIT);
+    break;
+  case BTN_LONGCLICK:
+    setTimerFlag(BTN_FLAG_NEXT);
+    break;
   }
 }
 #endif
