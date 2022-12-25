@@ -145,9 +145,21 @@ void checkSetButton()
     {
     case DISPLAY_MODE_SET_HOUR:
     case DISPLAY_MODE_SET_MINUTE:
+      btnSet.setBtnFlag(BTN_FLAG_NEXT);
+      break;
     case DISPLAY_MODE_SHOW_TIMER_1:
     case DISPLAY_MODE_SHOW_TIMER_2:
-      btnSet.setBtnFlag(BTN_FLAG_NEXT);
+      if (displayMode == DISPLAY_MODE_SHOW_TIMER_1 &&
+              timer_1.getTimerFlag() == TIMER_FLAG_NONE ||
+          displayMode == DISPLAY_MODE_SHOW_TIMER_2 &&
+              timer_2.getTimerFlag() == TIMER_FLAG_NONE)
+      { // если отображаемый таймер находится в режиме покоя, выбрать следующее сохраненное значение
+        btnSet.setBtnFlag(BTN_FLAG_NEXT);
+      }
+      else
+      { // если отображаемый таймер запущен или на паузе, короткий клик кнопкой Set переводит в режим отображения текущего времени
+        returnToDefMode();
+      }
       break;
     default:
       break;
