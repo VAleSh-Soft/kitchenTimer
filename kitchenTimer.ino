@@ -45,12 +45,6 @@ DisplayMode displayMode = DISPLAY_MODE_SHOW_TIME;
 bool blink_flag = false; // флаг блинка, используется всем, что должно мигать
 
 // ==== класс кнопок с предварительной настройкой ====
-// enum uint8_t : uint8_t
-// {
-//   BTN_FLAG_NONE, // флаг кнопки - ничего не делать
-//   BTN_FLAG_NEXT, // флаг кнопки - изменить значение
-//   BTN_FLAG_EXIT  // флаг кнопки - возврат в режим показа текущего времени
-// };
 const uint8_t BTN_FLAG_NONE = 0; // флаг кнопки - ничего не делать
 const uint8_t BTN_FLAG_NEXT = 1; // флаг кнопки - изменить значение
 const uint8_t BTN_FLAG_EXIT = 2; // флаг кнопки - возврат в режим показа текущего времени
@@ -363,16 +357,16 @@ void showTimeSetting()
       saveTime(curHour, curMinute);
       time_checked = false;
     }
-    if (btnSet.getButtonFlag() == BTN_FLAG_NEXT)
+    if (btnSet.getButtonFlag(true) == BTN_FLAG_NEXT)
     {
-      displayMode = (displayMode < DISPLAY_MODE_SET_MINUTE) ? (DisplayMode)((byte)displayMode + 1)
-                                                            : DISPLAY_MODE_SHOW_TIME;
+      displayMode = (displayMode < DISPLAY_MODE_SET_MINUTE)
+                        ? (DisplayMode)((byte)displayMode + 1)
+                        : DISPLAY_MODE_SHOW_TIME;
     }
     else
     {
       displayMode = DISPLAY_MODE_SHOW_TIME;
     }
-    btnSet.setButtonFlag(BTN_FLAG_NONE);
     if (displayMode == DISPLAY_MODE_SHOW_TIME)
     {
       tasks.stopTask(set_time_mode);
@@ -381,9 +375,10 @@ void showTimeSetting()
     }
   }
 
-  if ((btnUp.getButtonFlag() == BTN_FLAG_NEXT) || (btnDown.getButtonFlag() == BTN_FLAG_NEXT))
+  if ((btnUp.getButtonFlag() == BTN_FLAG_NEXT) ||
+      (btnDown.getButtonFlag(true) == BTN_FLAG_NEXT))
   {
-    bool dir = btnUp.getButtonFlag() == BTN_FLAG_NEXT;
+    bool dir = btnUp.getButtonFlag(true) == BTN_FLAG_NEXT;
     switch (displayMode)
     {
     case DISPLAY_MODE_SET_HOUR:
@@ -396,8 +391,6 @@ void showTimeSetting()
       break;
     }
     time_checked = true;
-    btnUp.setButtonFlag(BTN_FLAG_NONE);
-    btnDown.setButtonFlag(BTN_FLAG_NONE);
   }
 
   // вывод данных на экран ============
@@ -513,7 +506,8 @@ void showTimerMode()
   }
 
   // опрос кнопок =====================
-  if (tmr->getTimerFlag() == TIMER_FLAG_NONE && btnSet.getButtonFlag() == BTN_FLAG_NEXT)
+  if (tmr->getTimerFlag() == TIMER_FLAG_NONE &&
+      btnSet.getButtonFlag(true) == BTN_FLAG_NEXT)
   {
     tmr->setTimerCount(data_list.getNext());
     if (tmr->getTimerType() == IS_TIMER)
@@ -521,7 +515,6 @@ void showTimerMode()
       tmr->setTimerCount(tmr->getTimerCount() * 60);
     }
   }
-  btnSet.setButtonFlag(BTN_FLAG_NONE);
 
   // сброс таймера по нажатию двух кнопок - Up+Down
   if (btnUp.isButtonClosed() && btnDown.isButtonClosed())
@@ -535,10 +528,11 @@ void showTimerMode()
     btnDown.resetButtonState();
   }
 
-  if ((btnUp.getButtonFlag() == BTN_FLAG_NEXT) || (btnDown.getButtonFlag() == BTN_FLAG_NEXT))
+  if ((btnUp.getButtonFlag() == BTN_FLAG_NEXT) ||
+      (btnDown.getButtonFlag(true) == BTN_FLAG_NEXT))
   {
     uint32_t t_data = tmr->getTimerCount();
-    bool toUp = btnUp.getButtonFlag() == BTN_FLAG_NEXT;
+    bool toUp = btnUp.getButtonFlag(true) == BTN_FLAG_NEXT;
     int8_t d = (toUp) ? 1 : -1; // единица изменения данных
     if (tmr->getTimerType() == IS_TIMER)
     {
@@ -563,11 +557,9 @@ void showTimerMode()
       t_data += (tmr->getTimerType() == IS_TIMER) ? secondstime(RTC.now()) : minutstime(RTC.now());
       tmr->setEndPoint(t_data);
     }
-    btnUp.setButtonFlag(BTN_FLAG_NONE);
-    btnDown.setButtonFlag(BTN_FLAG_NONE);
   }
 
-  switch (btnTimer.getButtonFlag())
+  switch (btnTimer.getButtonFlag(true))
   {
   case BTN_FLAG_NEXT:
     if (tmr->getTimerCount() > 0)
@@ -601,7 +593,6 @@ void showTimerMode()
   default:
     break;
   }
-  btnTimer.setButtonFlag(BTN_FLAG_NONE);
 
   // вывод данных на экран ============
   switch (tmr->getTimerType())
