@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include <DS3231.h> // https://github.com/NorthernWidget/DS3231
+#include "shSimpleRTC.h"
 #include "dataList.h"
 #include "display_TM1637.h"
 #include "timer.h"
@@ -17,9 +17,8 @@
 // ===================================================
 
 DisplayTM1637 disp(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
-DS3231 clock; // SDA - A4, SCL - A5
-RTClib RTC;
-DataList data_list(DATA_LIST_INDEX, 10, MAX_DATA); // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t, 10 записей, максимальное значение - 1439
+shSimpleRTC ktClock;                               // SDA - A4, SCL - A5
+DataList data_list(DATA_LIST_INDEX, 10); // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t, 10 записей
 Timer timer_1(TIMER_1_EEPROM_INDEX, LED_TIMER1_GREEN_PIN, LED_TIMER1_RED_PIN);
 Timer timer_2(TIMER_2_EEPROM_INDEX, LED_TIMER2_GREEN_PIN, LED_TIMER2_RED_PIN);
 
@@ -28,6 +27,7 @@ shTaskManager tasks; // создаем список задач, количест
 shHandle blink_timer;            // блинк
 shHandle return_to_default_mode; // таймер автовозврата в режим показа времени из любого режима настройки
 shHandle set_time_mode;          // режим настройки времени
+shHandle rtc_guard;              //  опрос микросхемы RTC по таймеру, чтобы не дергать ее откуда попало
 #ifdef USE_TEMP_DATA
 shHandle show_temp_mode; // режим показа температуры
 #endif
@@ -52,7 +52,7 @@ const uint8_t BTN_FLAG_EXIT = 2; // флаг кнопки - возврат в р
 class ktButton : public shButton
 {
 public:
-  ktButton(byte button_pin) : shButton(button_pin)
+  ktButton(uint8_t button_pin) : shButton(button_pin)
   {
     shButton::setTimeoutOfLongClick(800);
     shButton::setLongClickMode(LCM_ONLYONCE);
@@ -65,9 +65,9 @@ public:
     shButton::setButtonFlag(BTN_FLAG_NONE);
   }
 
-  byte getButtonState()
+  uint8_t getButtonState()
   {
-    byte _state = shButton::getButtonState();
+    uint8_t _state = shButton::getButtonState();
     switch (_state)
     {
     case BTN_DOWN:
@@ -331,8 +331,8 @@ void returnToDefMode()
 void showTimeSetting()
 {
   static bool time_checked = false;
-  static byte curHour = 0;
-  static byte curMinute = 0;
+  static uint8_t curHour = 0;
+  static uint8_t curMinute = 0;
 
   if (!tasks.getTaskState(set_time_mode))
   {
@@ -344,7 +344,7 @@ void showTimeSetting()
 
   if (!time_checked)
   {
-    DateTime dt = RTC.now();
+    DateTime dt = ktClock.getCurTime();
     curHour = dt.hour();
     curMinute = dt.minute();
   }
@@ -360,7 +360,7 @@ void showTimeSetting()
     if (btnSet.getButtonFlag(true) == BTN_FLAG_NEXT)
     {
       displayMode = (displayMode < DISPLAY_MODE_SET_MINUTE)
-                        ? (DisplayMode)((byte)displayMode + 1)
+                        ? (DisplayMode)((uint8_t)displayMode + 1)
                         : DISPLAY_MODE_SHOW_TIME;
     }
     else
@@ -397,6 +397,15 @@ void showTimeSetting()
   showTimeData(curHour, curMinute);
 }
 
+void rtcNow()
+{
+  ktClock.now();
+  if (displayMode == DISPLAY_MODE_SHOW_TIME)
+  {
+    disp.showTime(ktClock.getCurTime().hour(), ktClock.getCurTime().minute(), blink_flag);
+  }
+}
+
 #ifdef USE_TEMP_DATA
 void showTemp()
 {
@@ -406,7 +415,7 @@ void showTemp()
     tasks.startTask(show_temp_mode);
   }
 
-  disp.showTemp((int)clock.getTemperature());
+  disp.showTemp(ktClock.getTemperature());
 }
 #endif
 
@@ -449,7 +458,7 @@ void setDisp()
 
 void checkTimers()
 {
-  DateTime dt = RTC.now();
+  DateTime dt = ktClock.getCurTime();
   timer_1.tick(dt);
   timer_2.tick(dt);
 
@@ -466,7 +475,7 @@ void backupEndPoints()
   tasks.stopTask(backup_end_point);
 }
 
-void showTimerChar(byte _type)
+void showTimerChar(uint8_t _type)
 {
   // IS_TIMER - dur, IS_ALARM - End
   disp.setDispData(0, (_type == IS_TIMER) ? 0b01011110 : 0b01111001);
@@ -477,7 +486,7 @@ void showTimerChar(byte _type)
 
 void showTimerMode()
 {
-  static byte n = 0;
+  static uint8_t n = 0;
   // определить действующий таймер
   Timer *tmr = (displayMode == DISPLAY_MODE_SHOW_TIMER_1) ? &timer_1 : &timer_2;
 
@@ -554,7 +563,8 @@ void showTimerMode()
     else if (tmr->getTimerFlag() == TIMER_FLAG_RUN)
     {
       tasks.restartTask(backup_end_point);
-      t_data += (tmr->getTimerType() == IS_TIMER) ? secondstime(RTC.now()) : minutstime(RTC.now());
+      t_data += (tmr->getTimerType() == IS_TIMER) ? secondstime(ktClock.getCurTime())
+                                                  : minutstime(ktClock.getCurTime());
       tmr->setEndPoint(t_data);
     }
   }
@@ -574,14 +584,14 @@ void showTimerMode()
         }
         // одиночный писк при старте/паузе таймера
         tone(BUZZER_PIN, 2000, 20);
-        tmr->startPause(RTC.now());
+        tmr->startPause(ktClock.getCurTime());
       }
     }
     break;
   case BTN_FLAG_EXIT:
     if (tmr->getTimerFlag() == TIMER_FLAG_NONE)
     { // смена типа таймера по двойному клику таймер-кнопки
-      tmr->setTimerType((TimerType)(!(byte)tmr->getTimerType()));
+      tmr->setTimerType((TimerType)(!(uint8_t)tmr->getTimerType()));
       tmr->setTimerCount(0);
       // двойной писк при смене типа таймера
       tone(BUZZER_PIN, 2000, 20);
@@ -601,7 +611,7 @@ void showTimerMode()
     if (tmr->getTimerCount() >= 60 || tmr->getTimerFlag() == TIMER_FLAG_NONE ||
         btnUp.isButtonClosed() || btnDown.isButtonClosed())
     {
-      byte h, m, s;
+      uint8_t h, m, s;
       timeinseconds(tmr->getTimerCount(), h, m, s);
       if (s > 0)
       {
@@ -621,10 +631,10 @@ void showTimerMode()
     }
     break;
   case IS_ALARM:
-    byte h, m, s;
+    uint8_t h, m, s;
     uint32_t t;
     t = (tmr->getTimerFlag() == TIMER_FLAG_RUN) ? tmr->getEndPoint()
-                                                : minutstime(RTC.now()) + tmr->getTimerCount();
+                                                : minutstime(ktClock.getCurTime()) + tmr->getTimerCount();
 
     timeinseconds(t * 60ul, h, m, s);
     showTimeData(h, m);
@@ -634,7 +644,7 @@ void showTimerMode()
 
 void runBuzzer()
 {
-  static byte n = 0;
+  static uint8_t n = 0;
   static uint16_t k = 0;
   // "мелодия" пищалки: первая строка - частота, вторая строка - длительность
   static const PROGMEM uint32_t pick[2][8] = {
@@ -688,7 +698,7 @@ void setBrightness()
 #endif
 
 // ===================================================
-void showTimeData(byte hour, byte minute)
+void showTimeData(uint8_t hour, uint8_t minute)
 {
   // если наступило время блинка и кнопки Up/Down не нажаты, то стереть соответствующие разряды; при нажатых кнопках Up/Down во время изменения данных ничего не мигает
   if (!blink_flag && !btnUp.isButtonClosed() && !btnDown.isButtonClosed())
@@ -717,15 +727,14 @@ void showTimeData(byte hour, byte minute)
 }
 
 // ===================================================
-void saveTime(byte hour, byte minute)
+void saveTime(uint8_t hour, uint8_t minute)
 {
-  clock.setSecond(0);
-  clock.setHour(hour);
-  clock.setMinute(minute);
+  ktClock.setClockMode(false); // 24-часовой режим
+  ktClock.setCurTime(hour, minute, 0);
 }
 
 // ===================================================
-void checkData(byte &dt, byte max, bool toUp)
+void checkData(uint8_t &dt, uint8_t max, bool toUp)
 {
   (toUp) ? dt++ : dt--;
   if (dt > max)
@@ -761,9 +770,6 @@ void setDisplay()
     }
     break;
   default:
-    DateTime dt;
-    dt = RTC.now();
-    disp.showTime(dt.hour(), dt.minute(), blink_flag);
     break;
   }
 }
@@ -775,11 +781,10 @@ void setup()
 
   // ==== часы =========================================
   Wire.begin();
-  clock.setClockMode(false); // 24-часовой режим
 
   // ==== таймеры ======================================
-  timer_1.restoreState(RTC.now());
-  timer_2.restoreState(RTC.now());
+  timer_1.restoreState(ktClock.getCurTime());
+  timer_2.restoreState(ktClock.getCurTime());
 
   // ==== кнопки Up/Down ===============================
   btnUp.setLongClickMode(LCM_CLICKSERIES);
@@ -794,7 +799,7 @@ void setup()
   pinMode(LED_TIMER2_PIN, OUTPUT);
 
   // ==== задачи =======================================
-  byte task_count = 9;
+  uint8_t task_count = 10;
 #ifdef USE_LIGHT_SENSOR
   task_count++;
 #endif
@@ -807,6 +812,7 @@ void setup()
   blink_timer = tasks.addTask(500, blink);
   return_to_default_mode = tasks.addTask(AUTO_EXIT_TIMEOUT * 1000ul, returnToDefMode, false);
   set_time_mode = tasks.addTask(100, showTimeSetting, false);
+  rtc_guard = tasks.addTask(50, rtcNow);
 #ifdef USE_TEMP_DATA
   show_temp_mode = tasks.addTask(500, showTemp, false);
 #endif

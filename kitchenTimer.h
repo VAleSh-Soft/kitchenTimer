@@ -1,6 +1,6 @@
 #pragma once
 #include <Arduino.h>
-#include <DS3231.h> // https://github.com/NorthernWidget/DS3231
+#include "shSimpleRTC.h"
 
 // #define USE_LIGHT_SENSOR // использовать или нет датчик света на пине А6 для регулировки яркости экрана
 
@@ -76,6 +76,7 @@ void blink();
 void restartBlink();
 void returnToDefMode();
 void showTimeSetting();
+void rtcNow();
 #ifdef USE_TEMP_DATA
 void showTemp();
 #endif
@@ -92,18 +93,18 @@ void setBrightness();
 
 // ==== вывод данных на экран ========================
 // вывод на экран данных в режиме настройки времени и в таймерных режимах
-void showTimeData(byte hour, byte minute);
+void showTimeData(uint8_t hour, uint8_t minute);
 
 // показ обозначения типа таймера при входе в таймерный режим
-void showTimerChar(byte _type);
+void showTimerChar(uint8_t _type);
 
 // ==== часы =========================================
 // сохранение времени после настройки
-void saveTime(byte hour, byte minute);
+void saveTime(uint8_t hour, uint8_t minute);
 
 // ==== разное =======================================
 // изменение данных по клику кнопки с контролем выхода за предельное значение
-void checkData(byte &dt, byte max, bool toUp);
+void checkData(uint8_t &dt, uint8_t max, bool toUp);
 
 // вывод данных на экран
 void setDisplay();

@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
-#include <DS3231.h> // https://github.com/NorthernWidget/DS3231
 #include <EEPROM.h>
+#include "shSimpleRTC.h"
 
 #define MAX_DATA 1439 // максимальное количество минут для установки таймера (23 ч, 59 мин)
 
@@ -29,7 +29,7 @@ uint32_t secondstime(DateTime tm)
 }
 
 // получение времени суток из секунд с 1 января 2000 года
-void timeinseconds(uint32_t _seconds, byte &_hour, byte &_min, byte &_sec)
+void timeinseconds(uint32_t _seconds, uint8_t &_hour, uint8_t &_min, uint8_t &_sec)
 {
   _seconds = _seconds % 86400; // получение количества секунд, прошедших с начала суток
   _hour = _seconds / 3600;
@@ -75,7 +75,7 @@ private:
   int32_t timer_count = 0;
   uint32_t end_point = 0;
   bool check_flag = false;
-  byte led_green, led_red;
+  uint8_t led_green, led_red;
 
   uint8_t read_eeprom_8(IndexOffset _index)
   {
@@ -110,7 +110,7 @@ private:
   }
 
 public:
-  Timer(uint16_t _eeprom_index, byte _led_green, byte _led_red)
+  Timer(uint16_t _eeprom_index, uint8_t _led_green, uint8_t _led_red)
   {
     eeprom_start = _eeprom_index;
     led_green = _led_green;
@@ -118,13 +118,13 @@ public:
     pinMode(led_red, OUTPUT);
     pinMode(led_green, OUTPUT);
 
-    if (read_eeprom_8(TIMER_TYPE) > (byte)IS_ALARM)
+    if (read_eeprom_8(TIMER_TYPE) > (uint8_t)IS_ALARM)
     {
-      write_eeprom_8(TIMER_TYPE, (byte)IS_TIMER);
+      write_eeprom_8(TIMER_TYPE, (uint8_t)IS_TIMER);
     }
-    if (read_eeprom_8(TIMER_FLAG) > (byte)TIMER_FLAG_STOP)
+    if (read_eeprom_8(TIMER_FLAG) > (uint8_t)TIMER_FLAG_STOP)
     {
-      write_eeprom_8(TIMER_FLAG, (byte)TIMER_FLAG_NONE);
+      write_eeprom_8(TIMER_FLAG, (uint8_t)TIMER_FLAG_NONE);
     }
   }
 
@@ -195,8 +195,8 @@ public:
 
   void setLed(LedsColor _mask) // включается по маске: 0 - все выключены, 1 - зеленый, 2 - красный
   {
-    digitalWrite(led_green, ((byte(_mask) >> (0)) & 0x01));
-    digitalWrite(led_red, ((byte(_mask) >> (1)) & 0x01));
+    digitalWrite(led_green, ((uint8_t(_mask) >> (0)) & 0x01));
+    digitalWrite(led_red, ((uint8_t(_mask) >> (1)) & 0x01));
   }
 
   int32_t getTimerCount()
@@ -226,7 +226,7 @@ public:
 
   void setTimerFlag(TimerFlag _flag)
   {
-    write_eeprom_8(TIMER_FLAG, (byte)_flag);
+    write_eeprom_8(TIMER_FLAG, (uint8_t)_flag);
   }
 
   TimerType getTimerType()
@@ -236,7 +236,7 @@ public:
 
   void setTimerType(TimerType _type)
   {
-    write_eeprom_8(TIMER_TYPE, (byte)_type);
+    write_eeprom_8(TIMER_TYPE, (uint8_t)_type);
   }
 
   bool checkTimerState()
