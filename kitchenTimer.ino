@@ -16,8 +16,8 @@
 #define AUTO_EXIT_TIMEOUT 6      // время автоматического возврата в режим показа текущего времени из любых других режимов при отсутствии активности пользователя, секунд
 // ===================================================
 
-DisplayTM1637 disp(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
-shSimpleRTC ktClock;                               // SDA - A4, SCL - A5
+DisplayTM1637 ktDisplay(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
+shSimpleRTC ktClock;                     // SDA - A4, SCL - A5
 DataList data_list(DATA_LIST_INDEX, 10); // данные хранятся в EEPROM по адресам 100-118 (0x64-0x76), uint16_t, 10 записей
 Timer timer_1(TIMER_1_EEPROM_INDEX, LED_TIMER1_GREEN_PIN, LED_TIMER1_RED_PIN);
 Timer timer_2(TIMER_2_EEPROM_INDEX, LED_TIMER2_GREEN_PIN, LED_TIMER2_RED_PIN);
@@ -52,53 +52,63 @@ const uint8_t BTN_FLAG_EXIT = 2; // флаг кнопки - возврат в р
 class ktButton : public shButton
 {
 public:
-  ktButton(uint8_t button_pin) : shButton(button_pin)
+  ktButton(uint8_t button_pin, bool serial_mode = false) : shButton(button_pin)
   {
     shButton::setTimeoutOfLongClick(800);
-    shButton::setLongClickMode(LCM_ONLYONCE);
     shButton::setVirtualClickOn(true);
-  }
-
-  void resetButtonState()
-  {
-    shButton::resetButtonState();
-    shButton::setButtonFlag(BTN_FLAG_NONE);
-  }
-
-  uint8_t getButtonState()
-  {
-    uint8_t _state = shButton::getButtonState();
-    switch (_state)
+    if (serial_mode)
     {
-    case BTN_DOWN:
-    case BTN_DBLCLICK:
-    case BTN_LONGCLICK:
-      // в любом режиме, кроме стандартного, каждый клик любой кнопки перезапускает таймер автовыхода в стандартный режим
-      if (tasks.getTaskState(return_to_default_mode))
-      {
-        tasks.restartTask(return_to_default_mode);
-      }
-      // сброс сработавших таймеров
-      if ((_state == BTN_DOWN) && (clearStopFlag(timer_1) + clearStopFlag(timer_2)))
-      {
-        // если был сброшен таймер, то действие по кнопке отменяется
-        resetButtonState();
-      }
-
-      break;
+      shButton::setLongClickMode(LCM_CLICKSERIES);
+      shButton::setIntervalOfSerial(50);
     }
-    return (_state);
+    else
+    {
+      shButton::setLongClickMode(LCM_ONLYONCE);
+    }
   }
+
+  void resetButtonState();
+
+  uint8_t getButtonState();
 };
+
+void ktButton::resetButtonState()
+{
+  shButton::resetButtonState();
+  shButton::setButtonFlag(BTN_FLAG_NONE);
+}
+
+uint8_t ktButton::getButtonState()
+{
+  uint8_t _state = shButton::getButtonState();
+  switch (_state)
+  {
+  case BTN_DOWN:
+  case BTN_DBLCLICK:
+  case BTN_LONGCLICK:
+    // в любом режиме, кроме стандартного, каждый клик любой кнопки перезапускает таймер автовыхода в стандартный режим
+    if (tasks.getTaskState(return_to_default_mode))
+    {
+      tasks.restartTask(return_to_default_mode);
+    }
+    // сброс сработавших таймеров
+    if ((_state == BTN_DOWN) && (clearStopFlag(timer_1) + clearStopFlag(timer_2)))
+    {
+      // если был сброшен таймер, то действие по кнопке отменяется
+      resetButtonState();
+    }
+
+    break;
+  }
+  return (_state);
+}
+
 // ===================================================
 
-ktButton btnSet(BTN_SET_PIN);     // кнопка Set - смена режима работы часов
-ktButton btnUp(BTN_UP_PIN);       // кнопка Up - изменение часов/минут в режиме настройки
-ktButton btnDown(BTN_DOWN_PIN);   // кнопка Down - изменение часов/минут в режиме настройки
-ktButton btnTimer(BTN_TIMER_PIN); // кнопка Timer - работа с таймерами
-#ifdef USE_MODE_BUTTON
-ktButton btnMode(BTN_MODE_PIN); // кнопка Mode - переключение режима отображения индикатора
-#endif
+ktButton btnSet(BTN_SET_PIN);         // кнопка Set - смена режима работы часов
+ktButton btnUp(BTN_UP_PIN, true);     // кнопка Up - изменение часов/минут в режиме настройки
+ktButton btnDown(BTN_DOWN_PIN, true); // кнопка Down - изменение часов/минут в режиме настройки
+ktButton btnTimer(BTN_TIMER_PIN);     // кнопка Timer - работа с таймерами
 
 // ===================================================
 bool clearStopFlag(Timer &tmr)
@@ -117,9 +127,6 @@ void checkButton()
   checkSetButton();
   checkUpDownButton();
   checkTimerButton();
-#ifdef USE_MODE_BUTTON
-  checkModeButton();
-#endif
 }
 
 void checkSetButton()
@@ -135,10 +142,10 @@ void checkSetButton()
       break;
     case DISPLAY_MODE_SHOW_TIMER_1:
     case DISPLAY_MODE_SHOW_TIMER_2:
-      if (displayMode == DISPLAY_MODE_SHOW_TIMER_1 &&
-              timer_1.getTimerFlag() == TIMER_FLAG_NONE ||
-          displayMode == DISPLAY_MODE_SHOW_TIMER_2 &&
-              timer_2.getTimerFlag() == TIMER_FLAG_NONE)
+      if ((displayMode == DISPLAY_MODE_SHOW_TIMER_1 &&
+           timer_1.getTimerFlag() == TIMER_FLAG_NONE) ||
+          (displayMode == DISPLAY_MODE_SHOW_TIMER_2 &&
+           timer_2.getTimerFlag() == TIMER_FLAG_NONE))
       { // если отображаемый таймер находится в режиме покоя, выбрать следующее сохраненное значение
         btnSet.setButtonFlag(BTN_FLAG_NEXT);
       }
@@ -253,23 +260,6 @@ void checkTimerButton()
   switch (btnTimer.getButtonState())
   {
   case BTN_ONECLICK:
-    setTimerFlag(BTN_FLAG_NEXT);
-    break;
-  case BTN_DBLCLICK:
-    setTimerFlag(BTN_FLAG_EXIT);
-    break;
-  case BTN_LONGCLICK:
-    setDisplayMode();
-    break;
-  }
-}
-
-#ifdef USE_MODE_BUTTON
-void checkModeButton()
-{
-  switch (btnMode.getButtonState())
-  {
-  case BTN_ONECLICK:
     setDisplayMode();
     break;
   case BTN_DBLCLICK:
@@ -280,7 +270,6 @@ void checkModeButton()
     break;
   }
 }
-#endif
 
 // ===================================================
 void blink()
@@ -402,7 +391,7 @@ void rtcNow()
   ktClock.now();
   if (displayMode == DISPLAY_MODE_SHOW_TIME)
   {
-    disp.showTime(ktClock.getCurTime().hour(), ktClock.getCurTime().minute(), blink_flag);
+    ktDisplay.showTime(ktClock.getCurTime().hour(), ktClock.getCurTime().minute(), blink_flag);
   }
 }
 
@@ -415,7 +404,7 @@ void showTemp()
     tasks.startTask(show_temp_mode);
   }
 
-  disp.showTemp(ktClock.getTemperature());
+  ktDisplay.showTemp(ktClock.getTemperature());
 }
 #endif
 
@@ -453,7 +442,7 @@ void setLeds()
 
 void setDisp()
 {
-  disp.show();
+  ktDisplay.show();
 }
 
 void checkTimers()
@@ -478,10 +467,10 @@ void backupEndPoints()
 void showTimerChar(uint8_t _type)
 {
   // IS_TIMER - dur, IS_ALARM - End
-  disp.setDispData(0, (_type == IS_TIMER) ? 0b01011110 : 0b01111001);
-  disp.setDispData(1, (_type == IS_TIMER) ? 0b00011100 : 0b01010100);
-  disp.setDispData(2, (_type == IS_TIMER) ? 0b01010000 : 0b01011110);
-  disp.setDispData(3, 0x00);
+  ktDisplay.setDispData(0, (_type == IS_TIMER) ? 0b01011110 : 0b01111001);
+  ktDisplay.setDispData(1, (_type == IS_TIMER) ? 0b00011100 : 0b01010100);
+  ktDisplay.setDispData(2, (_type == IS_TIMER) ? 0b01010000 : 0b01011110);
+  ktDisplay.setDispData(3, 0x00);
 }
 
 void showTimerMode()
@@ -688,11 +677,11 @@ void setBrightness()
   b = (b * 2 + analogRead(LIGHT_SENSOR_PIN)) / 3;
   if (b < LIGHT_THRESHOLD)
   {
-    disp.setBrightness(MIN_DISPLAY_BRIGHTNESS);
+    ktDisplay.setBrightness(MIN_DISPLAY_BRIGHTNESS);
   }
   else if (b > LIGHT_THRESHOLD + 50)
   {
-    disp.setBrightness(MAX_DISPLAY_BRIGHTNESS);
+    ktDisplay.setBrightness(MAX_DISPLAY_BRIGHTNESS);
   }
 }
 #endif
@@ -723,7 +712,7 @@ void showTimeData(uint8_t hour, uint8_t minute)
     }
   }
   // двоеточие отображается только в таймерных режимах
-  disp.showTime(hour, minute, displayMode >= DISPLAY_MODE_SHOW_TIMER_1);
+  ktDisplay.showTime(hour, minute, displayMode >= DISPLAY_MODE_SHOW_TIMER_1);
 }
 
 // ===================================================
@@ -781,16 +770,11 @@ void setup()
 
   // ==== часы =========================================
   Wire.begin();
+  ktClock.now();
 
   // ==== таймеры ======================================
   timer_1.restoreState(ktClock.getCurTime());
   timer_2.restoreState(ktClock.getCurTime());
-
-  // ==== кнопки Up/Down ===============================
-  btnUp.setLongClickMode(LCM_CLICKSERIES);
-  btnUp.setIntervalOfSerial(50);
-  btnDown.setLongClickMode(LCM_CLICKSERIES);
-  btnDown.setIntervalOfSerial(50);
 
   // ==== пины =========================================
   pinMode(BUZZER_PIN, OUTPUT);
@@ -825,7 +809,7 @@ void setup()
 #ifdef USE_LIGHT_SENSOR
   light_sensor_guard = tasks.addTask(100, setBrightness);
 #else
-  disp.setBrightness(MAX_DISPLAY_BRIGHTNESS);
+  ktDisplay.setBrightness(MAX_DISPLAY_BRIGHTNESS);
 #endif
 }
 

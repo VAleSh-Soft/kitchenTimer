@@ -6,8 +6,6 @@
 
 #define USE_TEMP_DATA // использовать или нет вывод на экран температуры по клику кнопкой Up
 
-#define USE_MODE_BUTTON // использование кнопки переключения режима отображения экрана
-
 // ==== пины =========================================
 
 // ==== кнопки =======================================
@@ -15,9 +13,6 @@
 #define BTN_DOWN_PIN 4  // пин для подключения кнопки Down
 #define BTN_UP_PIN 3    // пин для подключения кнопки Up
 #define BTN_TIMER_PIN 2 // пин для подключения кнопки Timer
-#ifdef USE_MODE_BUTTON
-#define BTN_MODE_PIN 12 // пин для подключения кнопки Mode
-#endif
 
 // ==== DS3231 =======================================
 #define DS3231_SDA_PIN A4 // пин для подключения вывода SDA модуля DS3231 (не менять!!!)
@@ -67,9 +62,6 @@ void checkButton();
 void checkSetButton();
 void checkUpDownButton();
 void checkTimerButton();
-#ifdef USE_MODE_BUTTON
-void checkModeButton();
-#endif
 
 // ==== задачи =======================================
 void blink();
