@@ -75,7 +75,6 @@ public:
 void ktButton::resetButtonState()
 {
   shButton::resetButtonState();
-  shButton::setButtonFlag(BTN_FLAG_NONE);
 }
 
 uint8_t ktButton::getButtonState()
