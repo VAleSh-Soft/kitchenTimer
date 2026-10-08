@@ -3,12 +3,13 @@
 #include <EEPROM.h>
 #include "shSimpleRTC.h"
 
+#ifndef MAX_DATA
 #define MAX_DATA 1439 // максимальное количество минут для установки таймера (23 ч, 59 мин)
+#endif
 
 // получение минут с 1 января 2000 года
-uint32_t minutstime(DateTime tm)
+static uint32_t minutstime(shDateTime tm)
 {
-  static const uint8_t daysInMonth[] PROGMEM = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   uint16_t y = tm.year();
   uint8_t m = tm.month();
   if (y >= 2000)
@@ -23,13 +24,13 @@ uint32_t minutstime(DateTime tm)
 }
 
 // получение секунд с 1 января 2000 года
-uint32_t secondstime(DateTime tm)
+static uint32_t secondstime(shDateTime tm)
 {
   return (minutstime(tm)) * 60 + tm.second();
 }
 
 // получение времени суток из секунд с 1 января 2000 года
-void timeinseconds(uint32_t _seconds, uint8_t &_hour, uint8_t &_min, uint8_t &_sec)
+static void timeinseconds(uint32_t _seconds, uint8_t &_hour, uint8_t &_min, uint8_t &_sec)
 {
   _seconds = _seconds % 86400; // получение количества секунд, прошедших с начала суток
   _hour = _seconds / 3600;
@@ -96,10 +97,10 @@ private:
 
   void write_eeprom_32(IndexOffset _index, uint32_t _data)
   {
-    EEPROM.put(eeprom_start + _index, _data);
+    EEPROM.update(eeprom_start + _index, _data);
   }
 
-  void checkTimerCount(DateTime dt)
+  void checkTimerCount(shDateTime dt)
   {
     uint32_t x = (getTimerType() == IS_TIMER) ? secondstime(dt) : minutstime(dt);
     timer_count = end_point - x;
@@ -128,7 +129,7 @@ public:
     }
   }
 
-  void restoreState(DateTime _time)
+  void restoreState(shDateTime _time)
   {
     switch (getTimerFlag())
     {
@@ -159,7 +160,7 @@ public:
     check_flag = !clear;
   }
 
-  void startPause(DateTime _time)
+  void startPause(shDateTime _time)
   {
     if (getTimerFlag() != TIMER_FLAG_STOP)
     {
@@ -185,7 +186,7 @@ public:
     }
   }
 
-  void tick(DateTime _time)
+  void tick(shDateTime _time)
   {
     if (getTimerFlag() == TIMER_FLAG_RUN)
     {

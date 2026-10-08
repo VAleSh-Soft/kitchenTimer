@@ -8,6 +8,9 @@ class DisplayTM1637 : public TM1637Display
 private:
   uint8_t data[4];
   uint8_t _brightness = 1;
+  // данные для контроля изменения яркости экрана и содержимого ячеек экрана
+  uint8_t _data[4] = {0x00, 0x00, 0x00, 0x00};
+  uint8_t _br = 0;
 
 public:
   DisplayTM1637(uint8_t clk_pin, uint8_t dat_pin) : TM1637Display(clk_pin, dat_pin)
@@ -50,8 +53,6 @@ public:
   void show()
   {
     bool flag = false;
-    static uint8_t _data[4] = {0x00, 0x00, 0x00, 0x00};
-    static uint8_t br = 0;
     for (uint8_t i = 0; i < 4; i++)
     {
       flag = _data[i] != data[i];
@@ -62,7 +63,7 @@ public:
     }
     if (!flag)
     {
-      flag = br != _brightness;
+      flag = _br != _brightness;
     }
     // отрисовка экрана происходит только если изменился хотя бы один разряд или изменилась яркость
     if (flag)
@@ -71,7 +72,7 @@ public:
       {
         _data[i] = data[i];
       }
-      br = _brightness;
+      _br = _brightness;
       TM1637Display::setSegments(data);
     }
   }
@@ -129,7 +130,7 @@ public:
     }
   }
 
-  // установка яркости экрана; реально яркость будет изменена только после вызова метода show()
+  // установка яркости экрана;
   void setBrightness(uint8_t brightness, bool on = true)
   {
     _brightness = brightness;

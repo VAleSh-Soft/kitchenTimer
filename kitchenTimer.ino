@@ -332,7 +332,7 @@ void showTimeSetting()
 
   if (!time_checked)
   {
-    DateTime dt = ktClock.getCurTime();
+    shDateTime dt = ktClock.getCurTime();
     curHour = dt.hour();
     curMinute = dt.minute();
   }
@@ -390,7 +390,8 @@ void rtcNow()
   ktClock.now();
   if (displayMode == DISPLAY_MODE_SHOW_TIME)
   {
-    ktDisplay.showTime(ktClock.getCurTime().hour(), ktClock.getCurTime().minute(), blink_flag);
+    shDateTime dt = ktClock.getCurTime();
+    ktDisplay.showTime(dt.hour(), dt.minute(), blink_flag);
   }
 }
 
@@ -446,7 +447,7 @@ void setDisp()
 
 void checkTimers()
 {
-  DateTime dt = ktClock.getCurTime();
+  shDateTime dt = ktClock.getCurTime();
   timer_1.tick(dt);
   timer_2.tick(dt);
 

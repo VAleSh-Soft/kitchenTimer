@@ -2,7 +2,9 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
+#ifndef MAX_DATA
 #define MAX_DATA 1439 // максимальное количество минут для установки таймера (23 ч, 59 мин)
+#endif
 
 // класс списка сохраненных значений таймера
 class DataList
@@ -33,7 +35,7 @@ private:
       if (result > MAX_DATA)
       {
         result = MAX_DATA;
-        EEPROM.put(_index, result);
+        EEPROM.update(_index, result);
       }
     }
 
@@ -66,7 +68,7 @@ private:
     {
       for (uint16_t i = last_index + data_size; i <= max_index; i += data_size)
       {
-        EEPROM.put(i, 0);
+        EEPROM.update(i, 0);
       }
     }
   }
@@ -95,7 +97,7 @@ public:
     {
       if (read_eeprom_16(i) > MAX_DATA)
       {
-        EEPROM.put(i, 0);
+        EEPROM.update(i, 0);
       }
     }
     getLastIndex();
@@ -131,10 +133,10 @@ public:
     {
       for (uint16_t i = n; i >= first_index; i -= data_size)
       {
-        EEPROM.put(i + data_size, getData(i));
+        EEPROM.update(i + data_size, getData(i));
       }
     }
-    EEPROM.put(first_index, _data);
+    EEPROM.update(first_index, _data);
     getLastIndex();
   }
 };

@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "shSimpleRTC.h"
+#include "timer.h"
 
 // #define USE_LIGHT_SENSOR // использовать или нет датчик света на пине А6 для регулировки яркости экрана
 
