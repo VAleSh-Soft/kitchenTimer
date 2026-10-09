@@ -97,7 +97,7 @@ private:
 
   void write_eeprom_32(IndexOffset _index, uint32_t _data)
   {
-    EEPROM.update(eeprom_start + _index, _data);
+    EEPROM.put(eeprom_start + _index, _data);
   }
 
   void checkTimerCount(shDateTime dt)
