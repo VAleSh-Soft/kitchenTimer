@@ -68,7 +68,7 @@ private:
     {
       for (uint16_t i = last_index + data_size; i <= max_index; i += data_size)
       {
-        EEPROM.put(i, 0l);
+        EEPROM.put(i, (uint16_t)0);
       }
     }
   }
@@ -97,7 +97,7 @@ public:
     {
       if (read_eeprom_16(i) > MAX_DATA)
       {
-        EEPROM.put(i, 0l);
+        EEPROM.put(i, (uint16_t)0);
       }
     }
     getLastIndex();
