@@ -9,11 +9,6 @@
 #define USE_BUTTON_FLAG
 #include <shButton.h> // https://github.com/VAleSh-Soft/shButton
 
-// ==== настройки ====================================
-#define MIN_DISPLAY_BRIGHTNESS 1 // минимальная яркость дисплея, 1-7
-#define MAX_DISPLAY_BRIGHTNESS 7 // максимальная яркость дисплея, 1-7
-#define LIGHT_THRESHOLD 300      // порог переключения для датчика света
-#define AUTO_EXIT_TIMEOUT 6      // время автоматического возврата в режим показа текущего времени из любых других режимов при отсутствии активности пользователя, секунд
 // ===================================================
 
 DisplayTM1637 ktDisplay(DISPLAY_CLK_PIN, DISPLAY_DAT_PIN);
@@ -54,7 +49,7 @@ class ktButton : public shButton
 public:
   ktButton(uint8_t button_pin, bool serial_mode = false) : shButton(button_pin)
   {
-    shButton::setTimeoutOfLongClick(800);
+    shButton::setTimeoutOfLongClick(TIMEOUT_FOR_LONG_BTN_PRESS);
     shButton::setVirtualClickOn(true);
     if (serial_mode)
     {
@@ -766,8 +761,6 @@ void setDisplay()
 // ===================================================
 void setup()
 {
-  // Serial.begin(9600);
-
   // ==== часы =========================================
   Wire.begin();
   ktClock.now();

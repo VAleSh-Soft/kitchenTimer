@@ -1,11 +1,19 @@
 #pragma once
+
 #include <Arduino.h>
 #include "shSimpleRTC.h"
 #include "timer.h"
 
-// #define USE_LIGHT_SENSOR // использовать или нет датчик света на пине А6 для регулировки яркости экрана
-
+// ==== настройки ====================================
 #define USE_TEMP_DATA // использовать или нет вывод на экран температуры по клику кнопкой Up
+// #define USE_LIGHT_SENSOR // использовать или нет датчик света на пине А6 для регулировки яркости экрана
+#define MAX_DISPLAY_BRIGHTNESS 7 // максимальная яркость дисплея, 1-7
+#ifdef USE_LIGHT_SENSOR
+#define MIN_DISPLAY_BRIGHTNESS 1 // минимальная яркость дисплея, 1-7
+#define LIGHT_THRESHOLD 300      // порог переключения для датчика света
+#endif
+#define AUTO_EXIT_TIMEOUT 6            // время автоматического возврата в режим показа текущего времени из любых других режимов при отсутствии активности пользователя, секунд
+#define TIMEOUT_FOR_LONG_BTN_PRESS 800 // интервал удержания кнопки нажатой, милисекунд
 
 // ==== пины =========================================
 
@@ -20,9 +28,9 @@
 #define DS3231_SCL_PIN A5 // пин для подключения вывода SCL модуля DS3231 (не менять!!!)
 
 // ==== экран ========================================
-#define DISPLAY_CLK_PIN 11      // пин для подключения экрана - CLK
-#define DISPLAY_DAT_PIN 10      // пин для подключения экрана - DAT
-#define BUZZER_PIN 6            // пин для подключения пищалки
+#define DISPLAY_CLK_PIN 11 // пин для подключения экрана - CLK
+#define DISPLAY_DAT_PIN 10 // пин для подключения экрана - DAT
+#define BUZZER_PIN 6       // пин для подключения пищалки
 
 // ==== светодиоды ===================================
 #define LED_CLOCK_PIN 7         // пин для подключения светодиода-индикатора - часы
@@ -48,11 +56,11 @@
 
 enum DisplayMode : uint8_t
 {
-  DISPLAY_MODE_SHOW_TIME,    // основной режим - вывод времени на экран
-  DISPLAY_MODE_SET_HOUR,     // режим настройки часов
-  DISPLAY_MODE_SET_MINUTE,   // режим настройки минут
+  DISPLAY_MODE_SHOW_TIME,  // основной режим - вывод времени на экран
+  DISPLAY_MODE_SET_HOUR,   // режим настройки часов
+  DISPLAY_MODE_SET_MINUTE, // режим настройки минут
 #ifdef USE_TEMP_DATA
-  DISPLAY_MODE_SHOW_TEMP,    // режим вывода температуры
+  DISPLAY_MODE_SHOW_TEMP, // режим вывода температуры
 #endif
   DISPLAY_MODE_SHOW_TIMER_1, // режим первого таймера
   DISPLAY_MODE_SHOW_TIMER_2  // режим второго таймера
